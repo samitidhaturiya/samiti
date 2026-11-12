@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>समिति का हिसाब</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪙</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Hindi&family=Mukta:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FFFDF7; --surface:#FFFFFF; --ink:#2A1A14; --muted:#75645A; --line:#E9DFCF;
+  --bahi:#8E1B2C; --bahi-ink:#FFF4E6; --haldi:#C98A12; --haldi-soft:#FBEFD2;
+  --ok:#2F7A4A; --ok-soft:#E3F2E7; --due:#B3261E; --due-soft:#FBE4E2;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#181012; --surface:#22181A; --ink:#F3E9E0; --muted:#B3A49A; --line:#3A2C2E;
+    --bahi:#5E1420; --bahi-ink:#FFE9D2; --haldi:#F0B848; --haldi-soft:#3A2D14;
+    --ok:#6FCB8E; --ok-soft:#173023; --due:#F2877F; --due-soft:#3A1A18;
+    color-scheme:dark;
+  }
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 60px)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Mukta","Noto Sans Devanagari","Nirmala UI",system-ui,sans-serif;font-size:17px;line-height:1.55}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bahi)}
+h1,h2,h3{font-family:"Tiro Devanagari Hindi","Noto Serif Devanagari",Georgia,serif;font-weight:400;margin:0}
+button,input,textarea,select{font:inherit;color:inherit}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px}
+
+header.top{background:var(--bahi);color:var(--bahi-ink);padding:18px 0 0}
+header.top .wrap{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+header.top h1{font-size:1.55rem;line-height:1.25}
+header.top .role{font-size:.9rem;opacity:.85;margin-top:2px}
+.loginbtn{background:transparent;border:1px solid rgba(255,244,230,.5);color:var(--bahi-ink);border-radius:999px;padding:4px 12px;font-size:.85rem;white-space:nowrap;cursor:pointer}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bahi);border-bottom:3px solid var(--haldi)}
+nav.tabs .wrap{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-top:10px}
+nav.tabs a{color:var(--bahi-ink);text-decoration:none;padding:8px 14px 10px;white-space:nowrap;border-radius:10px 10px 0 0;opacity:.8;font-weight:500}
+nav.tabs a[aria-current="page"]{background:var(--paper);color:var(--ink);opacity:1}
+nav.tabs a .badge{display:inline-block;background:var(--haldi);color:#2A1A14;border-radius:999px;padding:0 7px;font-size:.78rem;margin-left:4px}
+
+main{padding:20px 0 48px}
+section{margin-bottom:28px}
+h2{font-size:1.35rem;margin-bottom:10px}
+.muted{color:var(--muted)}
+.small{font-size:.9rem}
+
+.ledger{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ledger .row{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px;border-top:1px solid var(--line);gap:12px}
+.ledger .row:first-child{border-top:0}
+.ledger .row.total{background:var(--haldi-soft)}
+.ledger .row.total .amt{font-size:1.9rem;font-family:"Tiro Devanagari Hindi",Georgia,serif}
+.amt{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+.minus{color:var(--due)}
+
+.list{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.item{padding:12px 2px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;justify-content:space-between}
+.item .main{min-width:0;flex:1}
+.item .title{font-weight:500;overflow-wrap:anywhere}
+.item .meta{font-size:.88rem;color:var(--muted)}
+.item.left{opacity:.6}
+
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.85rem;font-weight:500;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.due{background:var(--due-soft);color:var(--due)}
+.pill.neutral{background:var(--haldi-soft);color:var(--ink)}
+
+.toggle{border:2px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 14px;min-width:96px;font-weight:500;cursor:pointer}
+.toggle.paid{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.toggle.unpaid{background:var(--due-soft);border-color:transparent;color:var(--due)}
+.toggle:disabled{cursor:default}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.next-meet{border-left:5px solid var(--haldi)}
+.notice{border-left:5px solid var(--bahi);margin-bottom:10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.req{border-left:5px solid var(--haldi);margin-bottom:10px}
+
+form.f{display:grid;gap:10px;background:var(--surface);border:1px dashed var(--haldi);border-radius:14px;padding:14px;margin-bottom:16px}
+form.f .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:grid;gap:4px;font-size:.9rem;color:var(--muted)}
+input,textarea,select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font-size:1rem}
+input[type=checkbox]{width:auto}
+textarea{min-height:84px;resize:vertical}
+input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--haldi);outline-offset:2px}
+.btn{border:0;border-radius:10px;padding:10px 16px;background:var(--bahi);color:#FFF4E6;font-weight:500;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:5px 10px;font-size:.88rem}
+.btn.danger{background:transparent;color:var(--due);border:1px solid var(--due)}
+.btn.okb{background:var(--ok);color:#fff}
+.btn:disabled{opacity:.6;cursor:default}
+.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.checks{display:flex;flex-wrap:wrap;gap:6px}
+.checks label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 12px;color:var(--ink);background:var(--paper);cursor:pointer}
+.checks label.on{border-color:var(--ok);background:var(--ok-soft)}
+
+.monthbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.monthbar h2{margin:0;text-align:center;flex:1}
+.stat-line{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.status{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 16px);background:var(--ink);color:var(--paper);padding:8px 16px;border-radius:999px;font-size:.9rem;z-index:20;display:none;max-width:90vw;text-align:center}
+.status.show{display:block}
+.empty{padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 12px) 12px calc(env(safe-area-inset-bottom,0px) + 12px)}
+.modal img{max-width:100%;max-height:80vh;border-radius:8px;background:#fff}
+.modal .bar{display:flex;gap:8px;margin-bottom:10px}
+@media (max-width:420px){form.f .two{grid-template-columns:1fr}}
+</style>
+<script src="config.js"></script>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div><h1 id="samitiName">समिति का हिसाब</h1><div class="role" id="roleLine">लोड हो रहा है…</div></div>
+  <button class="loginbtn" id="loginBtn" type="button" hidden>लॉगआउट</button>
+</div></header>
+<nav class="tabs" aria-label="भाग"><div class="wrap" id="tabs"></div></nav>
+<main><div class="wrap" id="app"><p class="muted">हिसाब खुल रहा है…</p></div></main>
+<div class="status" id="status" role="status"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, collection, onSnapshot, setDoc, getDoc, addDoc, deleteDoc, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, initializeAuth, inMemoryPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const MONTHS=["जनवरी","फ़रवरी","मार्च","अप्रैल","मई","जून","जुलाई","अगस्त","सितंबर","अक्टूबर","नवंबर","दिसंबर"];
+const LOGIN_DOMAIN="samiti-login.app";
+const S={data:null,exists:false,admin:false,user:null,me:null,authReady:false,noAccess:false,loaded:false,error:"",month:curMonth(),monthNow:curMonth(),view:"saransh",
+  requests:[],logins:{},editing:null,busy:{},billCache:{},deferred:false,saving:Promise.resolve(),
+  req:{months:[],amount:"",method:"नकद",note:"",sent:false}};
+let db,auth,secAuthInst=null,C=window.SAMITI_CONFIG,subs=[];
+
+function curMonth(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
+function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function monthLabel(m){const [y,mo]=m.split("-");return MONTHS[+mo-1]+" "+y}
+function addMonth(m,n){let [y,mo]=m.split("-").map(Number);mo+=n;while(mo>12){mo-=12;y++}while(mo<1){mo+=12;y--}return y+"-"+String(mo).padStart(2,"0")}
+function monthsBetween(a,b){if(!a||a>b)return[];const out=[];let m=a;while(m<=b){out.push(m);m=addMonth(m,1)}return out}
+function dateLabel(d){if(!d)return"";const [y,m,dd]=d.split("-");return (+dd)+" "+MONTHS[+m-1]+" "+y}
+function rs(n){return "₹"+Math.round(n||0).toLocaleString("en-IN")}
+function uid(){return Math.random().toString(36).slice(2,10)}
+function clone(o){return JSON.parse(JSON.stringify(o))}
+function lsGet(k){try{return localStorage.getItem(k)}catch(_){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(_){}}
+
+function h(tag,attrs,...kids){
+  const el=document.createElement(tag);
+  if(attrs)for(const k in attrs){
+    const v=attrs[k]; if(v==null||v===false)continue;
+    if(k.startsWith("on"))el.addEventListener(k.slice(2),v);
+    else if(k==="class")el.className=v;
+    else if(k==="text")el.textContent=v;
+    else if(k==="value")el.value=v;
+    else if(k==="checked")el.checked=!!v;
+    else el.setAttribute(k,v===true?"":v);
+  }
+  for(const c of kids.flat()){if(c==null||c===false)continue;el.append(c.nodeType?c:document.createTextNode(String(c)))}
+  return el;
+}
+function toast(msg){const s=document.getElementById("status");s.textContent=msg;s.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>s.classList.remove("show"),2600)}
+function confirmBtn(label,cls,onYes){
+  const b=h("button",{class:"btn small "+cls,type:"button",text:label});
+  let armed=false,t;
+  b.addEventListener("click",()=>{
+    if(!armed){armed=true;b.textContent="पक्का?";t=setTimeout(()=>{armed=false;b.textContent=label},3000);return}
+    clearTimeout(t);onYes();
+  });
+  return b;
+}
+
+// ---------- data helpers ----------
+function D(){return S.data||{}}
+function amount(){return Number(D().monthly)||100}
+function isSkipped(month){return (D().skipped||[]).includes(month)}
+function memberActiveIn(m,month){return m.join<=month&&(!m.left||m.left>=month)}
+function paidFor(mid,month){return Number(((D().payments||{})[mid]||{})[month])||0}
+function memberMonths(m){const end=m.left&&m.left<S.monthNow?m.left:S.monthNow;return monthsBetween(m.join,end).filter(mo=>!isSkipped(mo))}
+function memberSummary(m){
+  const months=memberMonths(m);const expected=months.length*amount();
+  let paid=0;const pays=(D().payments||{})[m.id]||{};
+  for(const k in pays)paid+=Number(pays[k])||0;
+  return {expected,paid,due:Math.max(0,expected-paid),months:months.length,paidMonths:months.filter(mo=>paidFor(m.id,mo)>0).length};
+}
+function dueMonths(m){return memberMonths(m).filter(mo=>paidFor(m.id,mo)<amount())}
+function totals(){
+  let jama=0;const p=D().payments||{};
+  for(const mid in p)for(const k in p[mid])jama+=Number(p[mid][k])||0;
+  let kharch=0;for(const e of D().expenses||[])kharch+=Number(e.amount)||0;
+  return {jama,kharch,bacha:jama-kharch};
+}
+function mainRef(){return doc(db,"samiti","main")}
+
+function save(mutate,msg){
+  if(!S.admin)return Promise.resolve();
+  const next=clone(S.data);mutate(next);next.updatedAt=Date.now();
+  S.data=next;render();
+  S.saving=S.saving.then(()=>setDoc(mainRef(),next)).then(()=>{if(msg)toast(msg)}).catch(e=>{console.error(e);toast("सेव नहीं हुआ, इंटरनेट जाँचें")});
+  return S.saving;
+}
+
+// ---------- images ----------
+async function compressImage(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
+    let max=1400,q=0.7,out="";
+    for(let t=0;t<7;t++){
+      const sc=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement("canvas");c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
+      const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);
+      out=c.toDataURL("image/jpeg",q);
+      if(out.length<650000)break;
+      max=Math.round(max*0.8);q=Math.max(0.4,q-0.08);
+    }
+    if(out.length>900000)throw new Error("too big");
+    return out;
+  }finally{URL.revokeObjectURL(url)}
+}
+async function uploadBill(file,expenseId){
+  const data=await compressImage(file);
+  const id=uid()+uid();
+  await setDoc(doc(db,"bills",id),{data,expenseId,at:Date.now()});
+  S.billCache[id]=data;
+  return id;
+}
+async function showBill(id){
+  const modal=h("div",{class:"modal",role:"dialog","aria-label":"बिल",onclick:e=>{if(e.target===modal)modal.remove()}},
+    h("div",{class:"bar"},h("button",{class:"btn",type:"button",onclick:()=>modal.remove()},"बंद करें")),
+    h("p",{style:"color:#fff"},"बिल खुल रहा है…"));
+  document.body.append(modal);
+  try{
+    let data=S.billCache[id];
+    if(!data){const snap=await getDoc(doc(db,"bills",id));data=snap.exists()?snap.data().data:null;if(data)S.billCache[id]=data}
+    modal.lastChild.replaceWith(data?h("img",{src:data,alt:"खर्च का बिल"}):h("p",{style:"color:#fff"},"बिल नहीं मिला"));
+  }catch(e){modal.lastChild.replaceWith(h("p",{style:"color:#fff"},"बिल लोड नहीं हुआ"))}
+}
+
+// ---------- routing ----------
+const VIEWS=()=>[["saransh","सारांश"],["jama","मासिक जमा"],["anurodh",S.admin?"अनुरोध":"पैसे जमा बताएँ"],["sadasya","सदस्य"],["kharcha","खर्च"],["baithak","बैठक"],["suchna","सूचना"]];
+function readHash(){const v=(location.hash||"").slice(1);S.view=VIEWS().some(x=>x[0]===v)?v:"saransh"}
+window.addEventListener("hashchange",()=>{readHash();render(true);window.scrollTo(0,0)});
+function renderTabs(){
+  const t=document.getElementById("tabs");t.replaceChildren();
+  for(const [k,label] of VIEWS()){
+    const a=h("a",{href:"#"+k,"aria-current":S.view===k?"page":null},label);
+    if(k==="anurodh"&&S.admin&&S.requests.length)a.append(h("span",{class:"badge"},String(S.requests.length)));
+    t.append(a);
+  }
+}
+
+// ---------- views ----------
+function viewSaransh(){
+  const t=totals();const out=[];
+  out.push(h("section",null,h("div",{class:"ledger"},
+    h("div",{class:"row"},h("span",null,"कुल जमा"),h("span",{class:"amt"},rs(t.jama))),
+    h("div",{class:"row"},h("span",null,"कुल खर्च"),h("span",{class:"amt minus"},"− "+rs(t.kharch))),
+    h("div",{class:"row total"},h("span",null,"बचे हुए पैसे"),h("span",{class:"amt"},rs(t.bacha))))));
+  if(S.admin&&S.requests.length)out.push(h("section",null,h("a",{href:"#anurodh",class:"card req",style:"display:block;color:inherit;text-decoration:none"},
+    S.requests.length+" सदस्यों ने पैसे जमा करने की सूचना भेजी है। देखकर मंज़ूर करें ›")));
+  const active=(D().members||[]).filter(m=>memberActiveIn(m,S.monthNow));
+  const paidNow=active.filter(m=>paidFor(m.id,S.monthNow)>0).length;
+  out.push(h("section",null,h("h2",null,"इस महीने ("+monthLabel(S.monthNow)+")"),
+    isSkipped(S.monthNow)?h("div",{class:"stat-line"},h("span",{class:"pill neutral"},"इस महीने छूट है, किसी से पैसे नहीं लिए जा रहे")):
+    h("div",{class:"stat-line"},
+      h("span",{class:"pill ok"},paidNow+" ने जमा किया"),
+      h("span",{class:"pill due"},(active.length-paidNow)+" बाकी"),
+      h("span",{class:"pill neutral"},active.length+" सदस्य · "+rs(amount())+" प्रति माह")),
+    (D().skipped||[]).length?h("p",{class:"small muted",style:"margin:0"},"छूट वाले महीने: "+(D().skipped||[]).slice().sort().map(monthLabel).join(", ")):null));
+  const up=(D().meetings||[]).filter(x=>x.date>=today()).sort((a,b)=>a.date.localeCompare(b.date));
+  out.push(h("section",null,h("h2",null,"अगली बैठक"),up.length?meetingCard(up[0],true):h("div",{class:"empty"},"कोई बैठक तय नहीं है")));
+  const ns=(D().notices||[]).slice().sort((a,b)=>b.at-a.at).slice(0,2);
+  out.push(h("section",null,h("h2",null,"ताज़ा सूचना"),ns.length?ns.map(noticeCard):h("div",{class:"empty"},"अभी कोई सूचना नहीं")));
+  const dues=(D().members||[]).map(m=>[m,memberSummary(m)]).filter(x=>x[1].due>0).sort((a,b)=>b[1].due-a[1].due);
+  out.push(h("section",null,h("h2",null,"किसका कितना बाकी"),
+    dues.length?h("div",{class:"list"},dues.map(([m,s])=>h("div",{class:"item"},
+      h("div",{class:"main"},h("div",{class:"title",text:m.name}),h("div",{class:"meta"},s.paidMonths+" / "+s.months+" महीने जमा")),
+      h("span",{class:"pill due"},rs(s.due)+" बाकी")))):h("div",{class:"empty"},"सबका हिसाब साफ़ है")));
+  if(S.admin){out.push(settingsForm());out.push(backupSection())}
+  return out;
+}
+
+function settingsForm(){
+  const name=h("input",{value:D().name||"",required:true});
+  const amt=h("input",{type:"number",min:"1",value:amount(),inputmode:"numeric"});
+  return h("section",null,h("h2",null,"समिति की सेटिंग"),
+    h("form",{class:"f",onsubmit:e=>{e.preventDefault();const n=name.value.trim();const a=Number(amt.value);if(!n||!(a>0))return;
+      save(d=>{d.name=n;d.monthly=a},"सेटिंग सेव हो गई")}},
+      h("div",{class:"two"},h("label",null,"समिति का नाम",name),h("label",null,"मासिक राशि (₹)",amt)),
+      h("p",{class:"small muted",style:"margin:0"},"राशि बदलने पर पूरे पुराने बकाया का हिसाब भी नई राशि से होगा।"),
+      h("div",null,h("button",{class:"btn",type:"submit"},"सेटिंग सेव करें"))));
+}
+function backupSection(){
+  const file=h("input",{type:"file",accept:"application/json,.json"});
+  return h("section",null,h("h2",null,"बैकअप"),
+    h("div",{class:"card"},
+      h("p",{style:"margin-top:0"},"हर महीने एक बार बैकअप फ़ाइल फ़ोन में सेव कर लें।"),
+      h("div",{class:"actions",style:"justify-content:flex-start"},
+        h("button",{class:"btn",type:"button",onclick:()=>{
+          const blob=new Blob([JSON.stringify(S.data,null,1)],{type:"application/json"});
+          const a=h("a",{href:URL.createObjectURL(blob),download:"samiti-backup-"+today()+".json"});document.body.append(a);a.click();a.remove();
+        }},"बैकअप डाउनलोड करें")),
+      h("p",{class:"small muted"},"बैकअप से वापस लाना (अभी का सारा हिसाब बदल जाएगा):"),
+      file,
+      h("div",{class:"actions",style:"justify-content:flex-start;margin-top:8px"},confirmBtn("बैकअप से वापस लाएँ","danger",async()=>{
+        const f=file.files[0];if(!f){toast("पहले फ़ाइल चुनें");return}
+        try{const d=JSON.parse(await f.text());if(!d||!Array.isArray(d.members))throw 0;save(x=>{for(const k of Object.keys(x))delete x[k];Object.assign(x,d)},"बैकअप से हिसाब वापस आ गया")}
+        catch(_){toast("यह सही बैकअप फ़ाइल नहीं है")}
+      }))));
+}
+
+function viewJama(){
+  const m=S.month;const out=[];
+  const members=(D().members||[]).filter(x=>memberActiveIn(x,m));
+  const paid=members.filter(x=>paidFor(x.id,m)>0);
+  let sum=0;for(const x of members)sum+=paidFor(x.id,m);
+  out.push(h("div",{class:"monthbar"},
+    h("button",{class:"btn ghost small",type:"button",onclick:()=>{S.month=addMonth(S.month,-1);render(true)}},"‹ पिछला"),
+    h("h2",null,monthLabel(m)),
+    h("button",{class:"btn ghost small",type:"button",disabled:m>=S.monthNow,onclick:()=>{S.month=addMonth(S.month,1);render(true)}},"अगला ›")));
+  const sk=isSkipped(m);
+  if(S.admin)out.push(h("div",{class:"card",style:"margin-bottom:12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"},
+    h("span",null,sk?"इस महीने किसी से पैसे नहीं लिए गए (छूट)":"इस महीने पैसे लिए जा रहे हैं"),
+    h("button",{class:"btn small "+(sk?"":"ghost"),type:"button",onclick:()=>save(d=>{d.skipped=d.skipped||[];if(sk)d.skipped=d.skipped.filter(x=>x!==m);else d.skipped.push(m)},sk?monthLabel(m)+": वसूली चालू":monthLabel(m)+": छूट वाला महीना")},sk?"वसूली चालू करें":"इस महीने छूट दें")));
+  if(sk){out.push(h("div",{class:"empty"},monthLabel(m)+" में किसी से पैसे नहीं लिए गए। यह महीना किसी के बकाया में नहीं गिना जाता।"));return out}
+  out.push(h("div",{class:"stat-line"},h("span",{class:"pill ok"},paid.length+" / "+members.length+" जमा"),h("span",{class:"pill neutral"},"इस महीने "+rs(sum))));
+  if(S.admin)out.push(h("p",{class:"small muted"},"नाम के सामने बटन दबाकर जमा या बाकी करें।"));
+  if(!members.length)out.push(h("div",{class:"empty"},"इस महीने कोई सदस्य नहीं था"));
+  else out.push(h("div",{class:"list"},members.map(x=>{
+    const p=paidFor(x.id,m)>0;
+    return h("div",{class:"item"},
+      h("div",{class:"main"},h("div",{class:"title",text:x.name}),p&&paidFor(x.id,m)!==amount()?h("div",{class:"meta"},rs(paidFor(x.id,m))+" जमा"):null),
+      h("button",{class:"toggle "+(p?"paid":"unpaid"),type:"button",disabled:!S.admin,"aria-pressed":p?"true":"false",
+        onclick:()=>save(d=>{d.payments=d.payments||{};d.payments[x.id]=d.payments[x.id]||{};
+          if(p)delete d.payments[x.id][m];else d.payments[x.id][m]=amount();
+        },p?x.name+": बाकी किया":x.name+": "+rs(amount())+" जमा")},p?"✓ जमा":"बाकी"));
+  })));
+  return out;
+}
+
+// ----- requests -----
+function viewAnurodh(){return S.admin?viewRequestsAdmin():viewRequestForm()}
+function viewRequestForm(){
+  const R=S.req;
+  const mem=(D().members||[]).find(m=>m.id===S.me);
+  const out=[];
+  if(!mem)return [h("div",{class:"empty"},"आपका नाम सदस्य सूची में नहीं मिला। अध्यक्ष से बात करें।")];
+  if(R.sent){out.push(h("section",null,h("div",{class:"card",style:"border-left:5px solid var(--ok)"},
+    h("h2",null,"सूचना भेज दी गई"),
+    h("p",null,"अध्यक्ष के मंज़ूर करने पर आपके पैसे हिसाब में जुड़ जाएँगे।"),
+    h("button",{class:"btn ghost",type:"button",onclick:()=>{R.sent=false;R.months=[];R.amount="";R.note="";render(true)}},"एक और सूचना भेजें"))))}
+  else{
+    out.push(h("section",null,h("h2",null,"पैसे जमा की सूचना भेजें"),
+      h("p",{class:"muted"},mem.name+", अध्यक्ष को पैसे दे दिए हैं? यहाँ बताएँ। मंज़ूर होते ही हिसाब में जुड़ जाएगा।")));
+    const pendingMonths=new Set(S.requests.flatMap(r=>r.months||[]));
+    const due=dueMonths(mem).filter(mo=>!pendingMonths.has(mo));
+    const btn=h("button",{class:"btn",type:"submit",disabled:!R.months.length?true:null},"सूचना भेजें");
+    const form=h("form",{class:"f",onsubmit:async e=>{
+      e.preventDefault();if(!R.months.length)return;
+      const amt=Number(R.amount)||R.months.length*amount();
+      btn.disabled=true;btn.textContent="भेज रहे हैं…";
+      try{
+        await addDoc(collection(db,"requests"),{memberId:mem.id,memberName:mem.name,months:R.months.slice().sort(),amount:amt,method:R.method,note:R.note.slice(0,280),at:serverTimestamp()});
+        R.sent=true;render(true);
+      }catch(err){console.error(err);btn.disabled=false;btn.textContent="सूचना भेजें";toast("नहीं भेजा जा सका, इंटरनेट जाँचें")}
+    }});
+    form.append(h("div",null,h("div",{class:"small muted",style:"margin-bottom:6px"},"किन महीनों के पैसे दिए?"),
+      due.length?h("div",{class:"checks"},due.map(mo=>{
+        const on=R.months.includes(mo);
+        return h("label",{class:on?"on":""},h("input",{type:"checkbox",checked:on,onchange:e=>{
+          if(e.target.checked)R.months.push(mo);else R.months=R.months.filter(x=>x!==mo);R.amount="";render(true)}}),monthLabel(mo));
+      })):h("div",{class:"empty"},"आपका कोई महीना बाकी नहीं है 🙏")));
+    if(due.length){
+      const amtIn=h("input",{type:"number",min:"1",inputmode:"numeric",value:R.amount||(R.months.length*amount()||""),oninput:e=>{R.amount=e.target.value}});
+      const meth=h("select",{onchange:e=>{R.method=e.target.value}},["नकद","UPI / फ़ोनपे / गूगल पे","बैंक"].map(x=>h("option",{value:x,selected:x===R.method?true:null},x)));
+      form.append(
+        h("div",{class:"two"},h("label",null,"कुल राशि (₹)",amtIn),h("label",null,"कैसे दिए",meth)),
+        h("label",null,"कुछ लिखना हो (ज़रूरी नहीं)",h("input",{value:R.note,maxlength:"280",oninput:e=>{R.note=e.target.value}})),
+        h("div",null,btn));
+    }
+    out.push(form);
+  }
+  if(S.requests.length)out.push(h("section",null,h("h2",null,"मंज़ूरी का इंतज़ार"),
+    S.requests.map(r=>h("div",{class:"card req"},h("div",{style:"font-weight:700"},rs(r.amount)+" · "+r.method),h("div",{class:"meta"},(r.months||[]).map(monthLabel).join(", "))))));
+  const s=memberSummary(mem);
+  out.push(h("section",null,h("h2",null,"मेरा हिसाब"),h("div",{class:"ledger"},
+    h("div",{class:"row"},h("span",null,"कुल जमा किया"),h("span",{class:"amt"},rs(s.paid))),
+    h("div",{class:"row"},h("span",null,"जमा महीने"),h("span",{class:"amt"},s.paidMonths+" / "+s.months)),
+    h("div",{class:"row total"},h("span",null,"बाकी"),h("span",{class:"amt"+(s.due?" minus":"")},rs(s.due))))));
+  return out;
+}
+function viewRequestsAdmin(){
+  return [h("section",null,h("h2",null,"पैसे जमा की सूचनाएँ ("+S.requests.length+")"),
+    S.requests.length?S.requests.map(r=>{
+      const mem=(D().members||[]).find(m=>m.id===r.memberId);
+      const when=r.at&&r.at.toDate?r.at.toDate():null;
+      return h("div",{class:"card req"},
+        h("div",{class:"title",style:"font-weight:700",text:(mem?mem.name:r.memberName)}),
+        h("div",null,rs(r.amount)+" · "+r.method),
+        h("div",{class:"meta"},(r.months||[]).map(monthLabel).join(", ")),
+        r.note?h("div",{class:"meta",text:"टिप्पणी: "+r.note}):null,
+        when?h("div",{class:"meta"},"भेजा: "+when.toLocaleDateString("hi-IN")):null,
+        !mem?h("div",{class:"meta minus"},"यह सदस्य अब सूची में नहीं है"):null,
+        h("div",{class:"actions",style:"margin-top:8px"},
+          confirmBtn("अस्वीकार","danger",()=>deleteDoc(doc(db,"requests",r.id)).then(()=>toast("सूचना हटाई"))),
+          h("button",{class:"btn small okb",type:"button",disabled:!mem?true:null,onclick:async e=>{
+            e.target.disabled=true;
+            let left=Number(r.amount)||0;const months=(r.months||[]).slice().sort();
+            await save(d=>{d.payments=d.payments||{};const p=d.payments[r.memberId]=d.payments[r.memberId]||{};
+              months.forEach((mo,i)=>{const already=Number(p[mo])||0;const need=Math.max(0,amount()-already);
+                const give=i===months.length-1?left:Math.min(need,left);if(give>0)p[mo]=already+give;left-=give;});
+            });
+            try{await deleteDoc(doc(db,"requests",r.id));toast((mem?mem.name:"")+": "+rs(r.amount)+" जमा हुआ")}catch(_){toast("सूचना हटाई नहीं जा सकी")}
+          }},"मंज़ूर करें")));
+    }):h("div",{class:"empty"},"कोई नई सूचना नहीं"))];
+}
+
+// ----- member logins (mobile + PIN) -----
+function normPhone(p){const d=String(p||"").replace(/\D/g,"");return d.length>10?d.slice(-10):d}
+function emailFor(phone){return "m"+phone+"@"+LOGIN_DOMAIN}
+function genPin(){const a=new Uint32Array(1);crypto.getRandomValues(a);return String(a[0]%900000+100000)}
+function secAuth(){
+  if(!secAuthInst){const app2=initializeApp(C.firebase,"login-maker");secAuthInst=initializeAuth(app2,{persistence:inMemoryPersistence})}
+  return secAuthInst;
+}
+function authErr(e){
+  const c=e&&e.code||"";
+  if(c==="auth/email-already-in-use")return "इस मोबाइल नंबर का लॉगिन पहले से बना है";
+  if(c==="auth/operation-not-allowed")return "Firebase में Email/Password लॉगिन चालू नहीं है";
+  if(c==="auth/too-many-requests")return "बहुत बार कोशिश हुई, थोड़ी देर बाद करें";
+  if(c==="auth/network-request-failed")return "इंटरनेट जाँचें";
+  return "काम नहीं हुआ ("+(c||"error")+")";
+}
+async function saveLogins(next){await setDoc(doc(db,"private","logins"),next);S.logins=next}
+async function createLogin(m){
+  const phone=normPhone(m.phone);
+  if(phone.length!==10){toast("पहले 10 अंकों का मोबाइल नंबर डालें");return}
+  if(Object.entries(S.logins).some(([id,l])=>id!==m.id&&l.phone===phone)){toast("यह नंबर किसी और सदस्य के लॉगिन में है");return}
+  S.busy[m.id]=true;render(true);
+  try{
+    const pin=genPin();const a=secAuth();
+    const cred=await createUserWithEmailAndPassword(a,emailFor(phone),pin);
+    const uidv=cred.user.uid;await signOut(a);
+    await setDoc(doc(db,"access",uidv),{memberId:m.id,phone});
+    await saveLogins(Object.assign({},S.logins,{[m.id]:{phone,pin,uid:uidv}}));
+    toast(m.name+" का लॉगिन बन गया");
+  }catch(e){console.error(e);toast(authErr(e))}
+  S.busy[m.id]=false;render(true);
+}
+async function changePin(m){
+  const l=S.logins[m.id];if(!l)return;
+  S.busy[m.id]=true;render(true);
+  try{
+    const a=secAuth();const cred=await signInWithEmailAndPassword(a,emailFor(l.phone),l.pin);
+    const pin=genPin();await updatePassword(cred.user,pin);await signOut(a);
+    await saveLogins(Object.assign({},S.logins,{[m.id]:Object.assign({},l,{pin})}));
+    toast("नया PIN बन गया");
+  }catch(e){console.error(e);toast(authErr(e))}
+  S.busy[m.id]=false;render(true);
+}
+async function removeLogin(m,quiet){
+  const l=S.logins[m.id];if(!l)return;
+  S.busy[m.id]=true;if(!quiet)render(true);
+  try{
+    await deleteDoc(doc(db,"access",l.uid));
+    try{const a=secAuth();const cred=await signInWithEmailAndPassword(a,emailFor(l.phone),l.pin);await deleteUser(cred.user)}catch(_){}
+    const next=Object.assign({},S.logins);delete next[m.id];await saveLogins(next);
+    if(!quiet)toast(m.name+" का लॉगिन बंद किया");
+  }catch(e){console.error(e);toast(authErr(e))}
+  S.busy[m.id]=false;render(true);
+}
+function waLink(m,l){
+  const url=location.origin+location.pathname;
+  const msg=(D().name||"समिति")+"\n\nहिसाब देखने के लिए यह लिंक खोलें:\n"+url+"\n\nमोबाइल नंबर: "+l.phone+"\nPIN: "+l.pin+"\n\nPIN किसी और को न बताएँ।";
+  return "https://wa.me/91"+l.phone+"?text="+encodeURIComponent(msg);
+}
+
+// ----- members -----
+function viewSadasya(){
+  const out=[];const all=D().members||[];
+  const active=all.filter(m=>!m.left||m.left>=S.monthNow);
+  const gone=all.filter(m=>m.left&&m.left<S.monthNow);
+  if(S.admin){
+    const name=h("input",{placeholder:"सदस्य का नाम",required:true});
+    const phone=h("input",{placeholder:"10 अंकों का मोबाइल",inputmode:"tel"});
+    const join=h("input",{type:"month",value:S.monthNow,required:true});
+    out.push(h("section",null,h("h2",null,"नया सदस्य जोड़ें"),
+      h("form",{class:"f",onsubmit:e=>{e.preventDefault();const n=name.value.trim();if(!n||!join.value)return;
+        save(d=>{d.members=d.members||[];d.members.push({id:uid(),name:n,phone:normPhone(phone.value),join:join.value,left:null})},n+" जुड़ गए")}},
+        h("label",null,"नाम",name),
+        h("div",{class:"two"},h("label",null,"मोबाइल",phone),h("label",null,"किस महीने से",join)),
+        h("div",null,h("button",{class:"btn",type:"submit"},"सदस्य जोड़ें")))));
+    const withLogin=active.filter(m=>S.logins[m.id]).length;
+    out.push(h("p",{class:"card small"},"लॉगिन: "+withLogin+" / "+active.length+" सदस्यों का बना है। हर सदस्य का मोबाइल नंबर डालकर \"लॉगिन बनाएँ\" दबाएँ, फिर WhatsApp से उन्हें PIN भेजें।"));
+  }
+  out.push(h("section",null,h("h2",null,"सक्रिय सदस्य ("+active.length+")"),active.length?h("div",{class:"list"},active.map(memberRow)):h("div",{class:"empty"},"अभी कोई सदस्य नहीं")));
+  if(gone.length)out.push(h("section",null,h("h2",null,"पुराने सदस्य ("+gone.length+")"),h("div",{class:"list"},gone.map(memberRow))));
+  return out;
+}
+function memberRow(m){
+  const login=S.logins[m.id];
+  if(S.admin&&S.editing===m.id){
+    const name=h("input",{value:m.name,required:true});
+    const phone=h("input",{value:m.phone||"",placeholder:"10 अंकों का मोबाइल",inputmode:"tel",disabled:login?true:null});
+    const join=h("input",{type:"month",value:m.join,required:true});
+    return h("form",{class:"f",style:"margin:10px 0",onsubmit:e=>{e.preventDefault();const n=name.value.trim();if(!n||!join.value)return;
+      S.editing=null;save(d=>{const x=d.members.find(y=>y.id===m.id);x.name=n;if(!login)x.phone=normPhone(phone.value);x.join=join.value},n+" की जानकारी सेव हुई")}},
+      h("label",null,"नाम",name),
+      h("div",{class:"two"},h("label",null,"मोबाइल",phone),h("label",null,"किस महीने से",join)),
+      login?h("p",{class:"small muted",style:"margin:0"},"मोबाइल बदलना हो तो पहले इस सदस्य का लॉगिन बंद करें।"):null,
+      h("div",{class:"actions",style:"justify-content:flex-start"},h("button",{class:"btn",type:"submit"},"सेव करें"),
+        h("button",{class:"btn ghost",type:"button",onclick:()=>{S.editing=null;render(true)}},"रद्द करें")));
+  }
+  const s=memberSummary(m);const isGone=m.left&&m.left<S.monthNow;
+  const meta=monthLabel(m.join)+" से"+(m.left?" · "+monthLabel(m.left)+" तक":"")+" · कुल जमा "+rs(s.paid);
+  const acts=[];let loginLine=null;
+  if(S.admin){
+    const busy=S.busy[m.id];
+    acts.push(h("button",{class:"btn small ghost",type:"button",onclick:()=>{S.editing=m.id;render(true)}},"बदलें"));
+    if(!m.left)acts.push(confirmBtn("समिति से हटाएँ","ghost",()=>{save(d=>{const x=d.members.find(y=>y.id===m.id);x.left=addMonth(S.monthNow,-1)<x.join?S.monthNow:addMonth(S.monthNow,-1)},m.name+" हटाए गए");removeLogin(m,true)}));
+    else acts.push(h("button",{class:"btn small ghost",type:"button",onclick:()=>save(d=>{d.members.find(y=>y.id===m.id).left=null},m.name+" वापस जुड़े")},"वापस जोड़ें"));
+    acts.push(confirmBtn("मिटाएँ","danger",()=>{removeLogin(m,true);save(d=>{d.members=d.members.filter(y=>y.id!==m.id);if(d.payments)delete d.payments[m.id]},m.name+" मिटा दिए")}));
+    if(busy)loginLine=h("div",{class:"meta"},"लॉगिन पर काम हो रहा है…");
+    else if(login)loginLine=h("div",{style:"margin-top:6px"},
+      h("div",{class:"meta"},"🔐 लॉगिन: "+login.phone+" · PIN "+login.pin),
+      h("div",{class:"actions",style:"justify-content:flex-start;margin-top:4px"},
+        h("a",{class:"btn small okb",href:waLink(m,login),target:"_blank",rel:"noopener",style:"text-decoration:none"},"WhatsApp पर PIN भेजें"),
+        confirmBtn("नया PIN","ghost",()=>changePin(m)),
+        confirmBtn("लॉगिन बंद करें","danger",()=>removeLogin(m))));
+    else if(!isGone)loginLine=h("div",{class:"actions",style:"justify-content:flex-start;margin-top:6px"},
+      normPhone(m.phone).length===10?h("button",{class:"btn small",type:"button",onclick:()=>createLogin(m)},"लॉगिन बनाएँ"):h("span",{class:"meta"},"लॉगिन के लिए पहले \"बदलें\" से मोबाइल डालें"));
+  }
+  return h("div",{class:"item"+(isGone?" left":"")},
+    h("div",{class:"main"},h("div",{class:"title",text:m.name}),h("div",{class:"meta",text:meta+(S.admin&&m.phone?" · "+m.phone:"")}),
+      S.admin?h("div",{class:"actions",style:"justify-content:flex-start;margin-top:6px"},acts):null,loginLine),
+    s.due>0?h("span",{class:"pill due"},rs(s.due)+" बाकी"):h("span",{class:"pill ok"},"साफ़"));
+}
+
+// ----- expenses -----
+function viewKharcha(){
+  const out=[];const list=(D().expenses||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  const t=totals();
+  if(S.admin){
+    const date=h("input",{type:"date",value:today(),required:true});
+    const desc=h("input",{placeholder:"किस चीज़ पर खर्च",required:true});
+    const amt=h("input",{type:"number",min:"1",placeholder:"राशि",inputmode:"numeric",required:true});
+    const bill=h("input",{type:"file",accept:"image/*"});
+    const btn=h("button",{class:"btn",type:"submit"},"खर्च जोड़ें");
+    out.push(h("section",null,h("h2",null,"खर्च लिखें"),
+      h("form",{class:"f",onsubmit:async e=>{e.preventDefault();const a=Number(amt.value);const ds=desc.value.trim();if(!ds||!(a>0))return;
+        const id=uid();let billId=null;
+        if(bill.files[0]){btn.disabled=true;btn.textContent="बिल अपलोड हो रहा है…";
+          try{billId=await uploadBill(bill.files[0],id)}catch(err){console.error(err);btn.disabled=false;btn.textContent="खर्च जोड़ें";toast("बिल अपलोड नहीं हुआ");return}}
+        save(d=>{d.expenses=d.expenses||[];d.expenses.push({id,date:date.value,desc:ds,amount:a,billId})},"खर्च लिख दिया")}},
+        h("label",null,"विवरण",desc),
+        h("div",{class:"two"},h("label",null,"तारीख़",date),h("label",null,"राशि (₹)",amt)),
+        h("label",null,"बिल की फ़ोटो (ज़रूरी नहीं)",bill),
+        h("div",null,btn))));
+  }
+  out.push(h("section",null,h("h2",null,"सारे खर्च"),
+    h("div",{class:"stat-line"},h("span",{class:"pill due"},"कुल खर्च "+rs(t.kharch)),h("span",{class:"pill neutral"},"बचा "+rs(t.bacha))),
+    list.length?h("div",{class:"list"},list.map(expenseRow)):h("div",{class:"empty"},"अभी कोई खर्च नहीं लिखा गया")));
+  return out;
+}
+function expenseRow(e){
+  const acts=[h("span",{class:"amt minus"},rs(e.amount))];
+  if(e.billId)acts.push(h("button",{class:"btn small ghost",type:"button",onclick:()=>showBill(e.billId)},"🧾 बिल देखें"));
+  if(S.admin){
+    if(!e.billId){
+      const f=h("input",{type:"file",accept:"image/*",hidden:true,onchange:async ev=>{
+        const file=ev.target.files[0];if(!file)return;toast("बिल अपलोड हो रहा है…");
+        try{const billId=await uploadBill(file,e.id);save(d=>{const x=d.expenses.find(y=>y.id===e.id);if(x)x.billId=billId},"बिल जुड़ गया")}catch(_){toast("बिल अपलोड नहीं हुआ")}
+      }});
+      acts.push(f,h("button",{class:"btn small ghost",type:"button",onclick:()=>f.click()},"बिल जोड़ें"));
+    }
+    acts.push(confirmBtn("हटाएँ","danger",()=>{save(d=>{d.expenses=d.expenses.filter(x=>x.id!==e.id)},"खर्च हटाया");if(e.billId)deleteDoc(doc(db,"bills",e.billId)).catch(()=>{})}));
+  }
+  return h("div",{class:"item",style:"flex-wrap:wrap"},
+    h("div",{class:"main"},h("div",{class:"title",text:e.desc}),h("div",{class:"meta"},dateLabel(e.date))),
+    h("div",{class:"actions"},acts));
+}
+
+// ----- meetings & notices -----
+function meetingCard(x,highlight){
+  return h("div",{class:"card"+(highlight?" next-meet":""),style:"margin-bottom:10px"},
+    h("div",{class:"title",style:"font-weight:700"},dateLabel(x.date)+(x.time?", "+x.time+" बजे":"")),
+    x.place?h("div",{class:"meta",text:"जगह: "+x.place}):null,
+    x.agenda?h("div",{style:"margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere",text:x.agenda}):null,
+    S.admin?h("div",{class:"actions",style:"margin-top:8px"},confirmBtn("हटाएँ","danger",()=>save(d=>{d.meetings=d.meetings.filter(y=>y.id!==x.id)},"बैठक हटाई"))):null);
+}
+function viewBaithak(){
+  const out=[];const all=(D().meetings||[]);
+  const up=all.filter(x=>x.date>=today()).sort((a,b)=>a.date.localeCompare(b.date));
+  const past=all.filter(x=>x.date<today()).sort((a,b)=>b.date.localeCompare(a.date));
+  if(S.admin){
+    const date=h("input",{type:"date",value:today(),required:true});
+    const time=h("input",{type:"time"});
+    const place=h("input",{placeholder:"कहाँ होगी"});
+    const agenda=h("textarea",{placeholder:"किन बातों पर चर्चा होगी"});
+    out.push(h("section",null,h("h2",null,"बैठक तय करें"),
+      h("form",{class:"f",onsubmit:e=>{e.preventDefault();if(!date.value)return;
+        save(d=>{d.meetings=d.meetings||[];d.meetings.push({id:uid(),date:date.value,time:time.value,place:place.value.trim(),agenda:agenda.value.trim()})},"बैठक तय हो गई")}},
+        h("div",{class:"two"},h("label",null,"तारीख़",date),h("label",null,"समय",time)),
+        h("label",null,"जगह",place),h("label",null,"विषय",agenda),
+        h("div",null,h("button",{class:"btn",type:"submit"},"बैठक जोड़ें")))));
+  }
+  out.push(h("section",null,h("h2",null,"आने वाली बैठकें"),up.length?up.map((x,i)=>meetingCard(x,i===0)):h("div",{class:"empty"},"कोई बैठक तय नहीं है")));
+  if(past.length)out.push(h("section",null,h("h2",null,"पिछली बैठकें"),past.map(x=>meetingCard(x,false))));
+  return out;
+}
+function noticeCard(n){
+  return h("div",{class:"card notice"},h("div",{class:"meta",style:"margin-bottom:4px"},dateLabel(n.date)),h("div",{text:n.text}),
+    S.admin?h("div",{class:"actions",style:"margin-top:8px"},confirmBtn("हटाएँ","danger",()=>save(d=>{d.notices=d.notices.filter(y=>y.id!==n.id)},"सूचना हटाई"))):null);
+}
+function viewSuchna(){
+  const out=[];const list=(D().notices||[]).slice().sort((a,b)=>b.at-a.at);
+  if(S.admin){
+    const text=h("textarea",{placeholder:"सभी सदस्यों के लिए सूचना लिखें",required:true});
+    out.push(h("section",null,h("h2",null,"नई सूचना"),
+      h("form",{class:"f",onsubmit:e=>{e.preventDefault();const t=text.value.trim();if(!t)return;
+        save(d=>{d.notices=d.notices||[];d.notices.push({id:uid(),date:today(),at:Date.now(),text:t})},"सूचना भेज दी")}},
+        text,h("div",null,h("button",{class:"btn",type:"submit"},"सूचना जारी करें")))));
+  }
+  out.push(h("section",null,h("h2",null,"सभी सूचनाएँ"),list.length?list.map(noticeCard):h("div",{class:"empty"},"अभी कोई सूचना नहीं")));
+  return out;
+}
+
+function viewSetup(){
+  if(!S.admin)return [h("div",{class:"empty"},"अध्यक्ष ने अभी समिति का हिसाब शुरू नहीं किया है।")];
+  const file=h("input",{type:"file",accept:"application/json,.json"});
+  const name=h("input",{placeholder:"समिति का नाम",required:true});
+  const amt=h("input",{type:"number",min:"1",value:"100",inputmode:"numeric"});
+  const start=h("input",{type:"month",value:S.monthNow});
+  const names=h("textarea",{placeholder:"हर लाइन में एक नाम",style:"min-height:180px"});
+  async function start_(data){try{await setDoc(mainRef(),Object.assign(data,{createdAt:Date.now()}));toast("समिति शुरू हो गई")}catch(err){console.error(err);toast("सेव नहीं हुआ। Firestore rules में आपका ईमेल सही है?")}}
+  return [h("section",null,h("h2",null,"समिति शुरू करें"),
+    h("div",{class:"card",style:"margin-bottom:16px"},
+      h("p",{style:"margin-top:0"},"Claude वाले ऐप का पुराना डेटा (purana-data.json) चुनें:"),file,
+      h("div",{style:"margin-top:10px"},h("button",{class:"btn",type:"button",onclick:async()=>{
+        const f=file.files[0];if(!f){toast("पहले फ़ाइल चुनें");return}
+        try{const d=JSON.parse(await f.text());if(!d||!Array.isArray(d.members))throw 0;start_(d)}catch(_){toast("यह सही फ़ाइल नहीं है")}
+      }},"पुराने डेटा से शुरू करें"))),
+    h("p",{class:"muted"},"या नए सिरे से:"),
+    h("form",{class:"f",onsubmit:e=>{e.preventDefault();const n=name.value.trim();if(!n)return;
+      const list=names.value.split("\n").map(x=>x.trim()).filter(Boolean);
+      start_({name:n,monthly:Number(amt.value)||100,members:list.map(x=>({id:uid(),name:x,phone:"",join:start.value||S.monthNow,left:null})),payments:{},expenses:[],meetings:[],notices:[],skipped:[]})}},
+      h("label",null,"समिति का नाम",name),
+      h("div",{class:"two"},h("label",null,"मासिक राशि (₹)",amt),h("label",null,"किस महीने से",start)),
+      h("label",null,"सदस्यों के नाम",names),
+      h("div",null,h("button",{class:"btn",type:"submit"},"समिति शुरू करें"))))];
+}
+
+function viewLogin(){
+  const phone=h("input",{inputmode:"numeric",autocomplete:"username",placeholder:"10 अंकों का मोबाइल नंबर",required:true,maxlength:"14"});
+  const pin=h("input",{type:"password",inputmode:"numeric",autocomplete:"current-password",placeholder:"6 अंकों का PIN",required:true,maxlength:"6"});
+  const btn=h("button",{class:"btn",type:"submit",style:"width:100%"},"लॉगिन करें");
+  return [h("section",{style:"max-width:420px;margin:12px auto"},
+    h("h2",null,"सदस्य लॉगिन"),
+    h("p",{class:"muted"},"यह हिसाब सिर्फ़ समिति के सदस्यों के लिए है। अध्यक्ष से मिला मोबाइल नंबर और PIN डालें।"),
+    h("form",{class:"f",onsubmit:async e=>{e.preventDefault();
+      const p=normPhone(phone.value);if(p.length!==10){toast("10 अंकों का मोबाइल नंबर डालें");return}
+      btn.disabled=true;btn.textContent="लॉगिन हो रहा है…";
+      try{await signInWithEmailAndPassword(auth,emailFor(p),pin.value.trim())}
+      catch(err){btn.disabled=false;btn.textContent="लॉगिन करें";const c=err&&err.code||"";
+        toast(c==="auth/too-many-requests"?"बहुत बार गलत PIN, थोड़ी देर बाद कोशिश करें":c==="auth/network-request-failed"?"इंटरनेट जाँचें":"मोबाइल नंबर या PIN गलत है")}
+    }},h("label",null,"मोबाइल नंबर",phone),h("label",null,"PIN",pin),btn),
+    h("p",{class:"small muted",style:"text-align:center"},"PIN भूल गए? अध्यक्ष से नया PIN लें।"),
+    h("div",{style:"text-align:center;margin-top:24px"},h("button",{class:"btn ghost small",type:"button",onclick:adminLogin},"अध्यक्ष हैं? Google से लॉगिन")))];
+}
+async function adminLogin(){
+  const prov=new GoogleAuthProvider();
+  try{await signInWithPopup(auth,prov)}catch(e){if(e&&(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment"))signInWithRedirect(auth,prov);else if(e&&e.code!=="auth/popup-closed-by-user")toast("लॉगिन नहीं हुआ")}
+}
+
+// ---------- render ----------
+function fieldFocused(){const a=document.activeElement;return a&&document.getElementById("app").contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)}
+document.addEventListener("focusout",()=>setTimeout(()=>{if(S.deferred&&!fieldFocused()){S.deferred=false;render(true)}},150));
+function render(force){
+  if(!force&&fieldFocused()){S.deferred=true;return}
+  S.monthNow=curMonth();
+  const showName=S.data&&S.data.name;
+  document.getElementById("samitiName").textContent=showName||"समिति का हिसाब";
+  document.title=showName||"समिति का हिसाब";
+  const lb=document.getElementById("loginBtn");
+  lb.hidden=!S.user;lb.textContent="लॉगआउट";
+  const me=(D().members||[]).find(m=>m.id===S.me);
+  document.getElementById("roleLine").textContent=!S.authReady?"लोड हो रहा है…":!S.user?"सिर्फ़ सदस्यों के लिए":S.admin?"आप अध्यक्ष हैं · पूरा अधिकार":me?"नमस्ते, "+me.name:"";
+  const app=document.getElementById("app");const tabsEl=document.querySelector("nav.tabs");
+  const plain=nodes=>{tabsEl.style.display="none";app.replaceChildren(...nodes)};
+  if(S.error)return plain([h("div",{class:"empty"},S.error)]);
+  if(!S.authReady)return plain([h("p",{class:"muted"},"खुल रहा है…")]);
+  if(!S.user)return plain(viewLogin());
+  if(S.noAccess)return plain([h("div",{class:"empty"},"इस खाते से हिसाब देखने की अनुमति नहीं है। अध्यक्ष से संपर्क करें।")]);
+  if(!S.loaded)return plain([h("p",{class:"muted"},"हिसाब खुल रहा है…")]);
+  if(!S.exists)return plain(viewSetup());
+  readHash();tabsEl.style.display="";renderTabs();
+  const fn={saransh:viewSaransh,jama:viewJama,anurodh:viewAnurodh,sadasya:viewSadasya,kharcha:viewKharcha,baithak:viewBaithak,suchna:viewSuchna}[S.view];
+  app.replaceChildren(...fn());
+}
+
+// ---------- boot ----------
+function stopSubs(){subs.forEach(u=>{try{u()}catch(_){}});subs=[]}
+function startData(){
+  subs.push(onSnapshot(mainRef(),snap=>{S.loaded=true;S.exists=snap.exists();S.data=snap.exists()?snap.data():null;render()},
+    err=>{console.error(err);S.loaded=true;S.error="डेटा लोड नहीं हुआ। इंटरनेट जाँचें और पेज दोबारा खोलें।";render(true)}));
+  if(S.admin){
+    subs.push(onSnapshot(query(collection(db,"requests"),orderBy("at","asc")),qs=>{S.requests=qs.docs.map(d=>Object.assign({id:d.id},d.data()));render()},e=>console.error(e)));
+    subs.push(onSnapshot(doc(db,"private","logins"),s=>{S.logins=s.exists()?s.data():{};render()},e=>console.error(e)));
+  }else{
+    subs.push(onSnapshot(query(collection(db,"requests"),where("memberId","==",S.me)),qs=>{S.requests=qs.docs.map(d=>Object.assign({id:d.id},d.data()));render()},e=>console.error(e)));
+  }
+}
+if(!C||!C.firebase||!C.firebase.apiKey||C.firebase.apiKey.includes("यहाँ")){
+  S.error="config.js में Firebase की जानकारी अभी नहीं डाली गई है।";render(true);
+}else{
+  const fbApp=initializeApp(C.firebase);db=getFirestore(fbApp);auth=getAuth(fbApp);
+  const adminEmail=String(C.adminEmail||"").trim().toLowerCase();
+  document.getElementById("loginBtn").addEventListener("click",()=>signOut(auth));
+  getRedirectResult(auth).catch(()=>{});
+  onAuthStateChanged(auth,async u=>{
+    stopSubs();
+    Object.assign(S,{user:u,admin:false,me:null,noAccess:false,loaded:false,exists:false,data:null,requests:[],logins:{},error:""});
+    if(u){
+      S.admin=!!(u.email&&u.email.toLowerCase()===adminEmail);
+      if(!S.admin){
+        try{const a=await getDoc(doc(db,"access",u.uid));if(a.exists())S.me=a.data().memberId;else S.noAccess=true}
+        catch(e){console.error(e);S.noAccess=true}
+      }
+      if(S.admin||S.me)startData();
+    }
+    S.authReady=true;render(true);
+  });
+}
+</script>
+
+</body>
+</html>
