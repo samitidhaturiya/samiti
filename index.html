@@ -113,6 +113,8 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-vis
 .modal .btn.danger{background:#fff}
 .namebtn{background:none;border:0;padding:0;font:inherit;font-weight:500;color:inherit;cursor:pointer;text-align:left;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:4px}
 .namebtn:hover{text-decoration-color:var(--haldi)}
+.pill.post{background:var(--head);color:var(--head-ink);margin-left:8px;font-size:.78rem;vertical-align:2px}
+.postsel{width:auto;padding:5px 8px;font-size:.88rem;border-radius:10px}
 .namebtn .chev{color:var(--muted);text-decoration:none;display:inline-block}
 .mlist .yearhead{padding:8px 16px;background:var(--paper);font-weight:700;border-top:1px solid var(--line);color:var(--muted)}
 .mlist .yearhead:first-child{border-top:0}
@@ -558,8 +560,8 @@ function printReport(m){
     area.append(h("h2",null,"महीनेवार हिसाब"),table(["महीना","स्थिति","जमा"],rows,[2]));
   }else{
     area.append(h("h2",null,"सारांश"),table(["विवरण","राशि"],[["कुल जमा",rs(t.jama)],["कुल खर्च",rs(t.kharch)],["बचे हुए पैसे",rs(t.bacha)],["मासिक राशि",rs(amount())]],[1]));
-    area.append(h("h2",null,"सदस्य"),table(["नाम","सदस्यता","जमा महीने","कुल जमा","बाकी"],
-      (d.members||[]).map(x=>{const s=memberSummary(x);return [x.name,periodText(x),s.paidMonths+" / "+s.months,rs(s.paid),rs(s.due)]}),[2,3,4]));
+    area.append(h("h2",null,"सदस्य"),table(["नाम","पद","सदस्यता","जमा महीने","कुल जमा","बाकी"],
+      sortByPost(d.members||[]).map(x=>{const s=memberSummary(x);return [x.name,x.post||"-",periodText(x),s.paidMonths+" / "+s.months,rs(s.paid),rs(s.due)]}),[3,4,5]));
     const ex=(d.expenses||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
     area.append(h("h2",null,"खर्च"),ex.length?table(["तारीख़","विवरण","राशि"],ex.map(e=>[dateLabel(e.date),e.desc,rs(e.amount)]),[2]):h("p",null,"कोई खर्च नहीं"));
     if((d.skipped||[]).length)area.append(h("h2",null,"छूट वाले महीने"),h("p",null,d.skipped.slice().sort().map(monthLabel).join(", ")));
@@ -580,13 +582,42 @@ function downloadCSV(){
   const esc=v=>{v=v==null?"":String(v);return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const row=a=>a.map(esc).join(",");
   const lines=[row([d.name||"समिति","रिपोर्ट: "+today()]),row(["कुल जमा",t.jama,"कुल खर्च",t.kharch,"बचे हुए पैसे",t.bacha]),"",
-    row(["नाम",...(S.admin?["मोबाइल"]:[]),"सदस्यता",...months.map(monthLabel),"कुल जमा","बाकी"])];
-  for(const m of allM){const s=memberSummary(m);
-    lines.push(row([m.name,...(S.admin?[m.phone||""]:[]),periodText(m),...months.map(mo=>{const st=monthStatus(m,mo);return st.paid?st.paid:(st.label==="सदस्य नहीं"?"":st.label)}),s.paid,s.due]))}
+    row(["नाम","पद",...(S.admin?["मोबाइल"]:[]),"सदस्यता",...months.map(monthLabel),"कुल जमा","बाकी"])];
+  for(const m of sortByPost(allM)){const s=memberSummary(m);
+    lines.push(row([m.name,m.post||"",...(S.admin?[m.phone||""]:[]),periodText(m),...months.map(mo=>{const st=monthStatus(m,mo);return st.paid?st.paid:(st.label==="सदस्य नहीं"?"":st.label)}),s.paid,s.due]))}
   lines.push("",row(["खर्च"]),row(["तारीख़","विवरण","राशि"]));
   for(const e of (d.expenses||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)))lines.push(row([dateLabel(e.date),e.desc,e.amount]));
   const blob=new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   const a=h("a",{href:URL.createObjectURL(blob),download:"samiti-report-"+today()+".csv"});document.body.append(a);a.click();a.remove();
+}
+
+// ----- posts (पद) -----
+const DEFAULT_POSTS=["अध्यक्ष","उपाध्यक्ष","सचिव","सह-सचिव","कोषाध्यक्ष"];
+function postList(){return Array.isArray(D().posts)?D().posts:DEFAULT_POSTS}
+function postRank(m){const i=m.post?postList().indexOf(m.post):-1;return i<0?999:i}
+function sortByPost(list){return list.map((m,i)=>[m,i]).sort((a,b)=>(postRank(a[0])-postRank(b[0]))||(a[1]-b[1])).map(x=>x[0])}
+function postPill(m){return m.post?h("span",{class:"pill post"},m.post):null}
+function postSelect(m){
+  const list=postList().slice();if(m.post&&!list.includes(m.post))list.push(m.post);
+  return h("select",{class:"postsel","aria-label":m.name+" का पद",onchange:e=>{const v=e.target.value;
+      const holder=v&&(D().members||[]).find(x=>x.id!==m.id&&x.post===v&&isCurrent(x));
+      save(d=>{const x=d.members.find(y=>y.id===m.id);if(x)x.post=v||""},v?m.name+": "+v+(holder?" (यह पद "+holder.name+" के पास भी है)":""):m.name+": पद हटाया")}},
+    h("option",{value:""},"पद: कोई नहीं"),list.map(p=>h("option",{value:p,selected:m.post===p?true:null},p)));
+}
+function postsSection(){
+  const input=h("input",{placeholder:"नया पद, जैसे: संरक्षक",maxlength:"40"});
+  const list=postList();
+  return h("section",null,h("h2",null,"समिति के पद"),
+    h("div",{class:"card"},
+      h("p",{class:"small muted",style:"margin-top:0"},"यहाँ पद बनाएँ। फिर नीचे हर सदस्य के सामने \"पद\" में से चुनें।"),
+      list.length?h("div",{class:"checks",style:"margin-bottom:12px"},list.map((p,i)=>h("span",{class:"pill neutral",style:"display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 12px"},
+        p,
+        i>0?h("button",{class:"btn small ghost",type:"button",style:"padding:0 6px","aria-label":p+" ऊपर करें",onclick:()=>save(d=>{const a=(Array.isArray(d.posts)?d.posts:DEFAULT_POSTS).slice();[a[i-1],a[i]]=[a[i],a[i-1]];d.posts=a})},"↑"):null,
+        confirmBtn("✕","danger",()=>save(d=>{d.posts=(Array.isArray(d.posts)?d.posts:DEFAULT_POSTS).filter(x=>x!==p);(d.members||[]).forEach(x=>{if(x.post===p)x.post=""})},p+" पद हटाया"))))):h("p",{class:"muted"},"अभी कोई पद नहीं"),
+      h("form",{style:"display:flex;gap:8px",onsubmit:e=>{e.preventDefault();const v=input.value.trim();if(!v)return;
+        if(list.includes(v)){toast("यह पद पहले से है");return}
+        save(d=>{d.posts=(Array.isArray(d.posts)?d.posts:DEFAULT_POSTS).concat([v])},v+" पद जुड़ गया")}},
+        input,h("button",{class:"btn",type:"submit",style:"white-space:nowrap"},"पद जोड़ें"))));
 }
 
 // ----- members -----
@@ -599,6 +630,7 @@ function viewMemberDetail(m){
   const cur=isCurrent(m);
   out.push(h("section",null,
     h("h2",{style:"margin-bottom:4px",text:m.name}),
+    m.post?h("div",{style:"margin-bottom:4px"},postPill(m)):null,
     h("div",{class:"stat-line",style:"margin:6px 0 12px"},
       h("span",{class:"pill "+(cur?"ok":"neutral")},cur?"सक्रिय सदस्य":"समिति छोड़ चुके"),
       S.admin&&m.phone?h("span",{class:"pill neutral"},"📞 "+m.phone):null,
@@ -635,7 +667,7 @@ function viewSadasya(){
   const all=D().members||[];
   if(S.detail){const dm=all.find(x=>x.id===S.detail);if(dm)return viewMemberDetail(dm);S.detail=null}
   const out=[];
-  const active=all.filter(isCurrent);
+  const active=sortByPost(all.filter(isCurrent));
   const gone=all.filter(m=>!isCurrent(m));
   if(S.admin){
     const name=h("input",{placeholder:"सदस्य का नाम",required:true});
@@ -647,6 +679,7 @@ function viewSadasya(){
         h("label",null,"नाम",name),
         h("div",{class:"two"},h("label",null,"मोबाइल",phone),h("label",null,"किस महीने से",join)),
         h("div",null,h("button",{class:"btn",type:"submit"},"सदस्य जोड़ें")))));
+    out.push(postsSection());
     const withLogin=active.filter(m=>S.logins[m.id]).length;
     out.push(h("p",{class:"card small"},"लॉगिन: "+withLogin+" / "+active.length+" सदस्यों का बना है। हर सदस्य का मोबाइल नंबर डालकर \"लॉगिन बनाएँ\" दबाएँ, फिर WhatsApp से उन्हें PIN भेजें।"));
   }
@@ -725,6 +758,7 @@ function memberRow(m){
   const acts=[];let loginLine=null;
   if(S.admin){
     const busy=S.busy[m.id];
+    if(cur)acts.push(postSelect(m));
     acts.push(h("button",{class:"btn small ghost",type:"button",onclick:()=>{S.editing=m.id;S.leaving=S.rejoining=null;render(true)}},"बदलें"));
     if(cur&&!last.to)acts.push(h("button",{class:"btn small ghost",type:"button",onclick:()=>{S.leaving=m.id;S.editing=S.rejoining=null;render(true)}},"समिति छोड़ी"));
     if(!cur||last.to)acts.push(h("button",{class:"btn small",type:"button",onclick:()=>{S.rejoining=m.id;S.editing=S.leaving=null;render(true)}},"फिर से जोड़ें"));
@@ -741,7 +775,7 @@ function memberRow(m){
       normPhone(m.phone).length===10?h("button",{class:"btn small",type:"button",onclick:()=>createLogin(m)},"लॉगिन बनाएँ"):h("span",{class:"meta"},"लॉगिन के लिए पहले \"बदलें\" से मोबाइल डालें"));
   }
   return h("div",{class:"item"+(cur?"":" left")},
-    h("div",{class:"main"},h("div",{class:"title"},nameBtn(m)),h("div",{class:"meta",text:meta+(S.admin&&m.phone?" · "+m.phone:"")}),
+    h("div",{class:"main"},h("div",{class:"title"},nameBtn(m),postPill(m)),h("div",{class:"meta",text:meta+(S.admin&&m.phone?" · "+m.phone:"")}),
       S.admin?h("div",{class:"actions",style:"justify-content:flex-start;margin-top:6px"},acts):null,loginLine),
     s.due>0?h("span",{class:"pill due"},rs(s.due)+" बाकी"):h("span",{class:"pill ok"},"साफ़"));
 }
