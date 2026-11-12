@@ -668,15 +668,29 @@ function memberRow(m){
   if(S.admin&&S.editing===m.id){
     const name=h("input",{value:m.name,required:true});
     const phone=h("input",{value:m.phone||"",placeholder:"10 अंकों का मोबाइल",inputmode:"tel",disabled:login?true:null});
-    const single=ps.length===1;
-    const join=h("input",{type:"month",value:ps[0].from,required:true,disabled:single?null:true});
+    const rows=ps.map((p,i)=>({from:h("input",{type:"month",value:p.from,required:true}),to:h("input",{type:"month",value:p.to||""})}));
     return h("form",{class:"f",style:"margin:10px 0",onsubmit:e=>{e.preventDefault();const n=name.value.trim();if(!n)return;
-      if(single&&ps[0].to&&join.value>ps[0].to){toast("जुड़ने का महीना छोड़ने के बाद नहीं हो सकता");return}
-      S.editing=null;save(d=>{const x=d.members.find(y=>y.id===m.id);x.name=n;if(!login)x.phone=normPhone(phone.value);
-        if(single&&join.value){x.periods=periods(x);x.periods[0].from=join.value;syncPeriods(x)}},n+" की जानकारी सेव हुई")}},
+      const np=rows.map(r=>({from:r.from.value,to:r.to.value||null}));
+      for(let i=0;i<np.length;i++){const p=np[i];
+        if(!p.from){toast("जुड़ने का महीना भरें");return}
+        if(p.to&&p.to<p.from){toast("छोड़ने का महीना जुड़ने से पहले नहीं हो सकता");return}
+        if(p.to&&p.to>S.monthNow){toast("छोड़ने का महीना आगे का नहीं हो सकता");return}
+        if(i<np.length-1&&!p.to){toast("पहली सदस्यता का छोड़ने का महीना भरें");return}
+        if(i>0&&p.from<=np[i-1].to){toast("फिर से जुड़ने का महीना पिछली बार छोड़ने के बाद का होना चाहिए");return}
+      }
+      S.editing=null;
+      save(d=>{const x=d.members.find(y=>y.id===m.id);x.name=n;if(!login)x.phone=normPhone(phone.value);x.periods=np;syncPeriods(x)},n+" की जानकारी सेव हुई");
+      const last=np[np.length-1];if(last.to&&last.to<S.monthNow&&login)removeLogin(m,true)}},
+      h("div",{style:"font-weight:700"},"जानकारी सुधारें"),
       h("label",null,"नाम",name),
-      h("div",{class:"two"},h("label",null,"मोबाइल",phone),h("label",null,"किस महीने से जुड़े",join)),
+      h("label",null,"मोबाइल",phone),
       login?h("p",{class:"small muted",style:"margin:0"},"मोबाइल बदलना हो तो पहले इस सदस्य का लॉगिन बंद करें।"):null,
+      rows.map((r,i)=>h("div",{style:"border-top:1px solid var(--line);padding-top:10px"},
+        ps.length>1?h("div",{class:"small",style:"font-weight:700;margin-bottom:6px"},(i+1)+"वीं बार की सदस्यता"):null,
+        h("div",{class:"two"},h("label",null,i===0?"किस महीने से जुड़े":"किस महीने से फिर जुड़े",r.from),
+          h("label",null,"आख़िरी महीना (छोड़ा न हो तो ख़ाली)",r.to)),
+        i===rows.length-1?h("button",{class:"btn small ghost",type:"button",style:"margin-top:6px",onclick:()=>{r.to.value=""}},"छोड़ने का महीना हटाएँ (अभी भी सदस्य हैं)"):null)),
+      h("p",{class:"small muted",style:"margin:0"},"गलत महीना चुन लिया हो तो यहाँ सही कर दें। जमा की गई राशि पर कोई असर नहीं पड़ेगा।"),
       h("div",{class:"actions",style:"justify-content:flex-start"},h("button",{class:"btn",type:"submit"},"सेव करें"),
         h("button",{class:"btn ghost",type:"button",onclick:()=>{S.editing=null;render(true)}},"रद्द करें")));
   }
