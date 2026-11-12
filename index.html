@@ -508,10 +508,10 @@ async function removeLogin(m,quiet){
   }catch(e){console.error(e);toast(authErr(e))}
   S.busy[m.id]=false;render(true);
 }
-function waLink(m,l){
+function pinText(m,l){
   const url=location.origin+location.pathname;
   const msg=(D().name||"समिति")+"\n\nहिसाब देखने के लिए यह लिंक खोलें:\n"+url+"\n\nमोबाइल नंबर: "+l.phone+"\nPIN: "+l.pin+"\n\nPIN किसी और को न बताएँ।";
-  return "https://wa.me/91"+l.phone+"?text="+encodeURIComponent(msg);
+  return msg;
 }
 
 // ----- logo & reports -----
@@ -690,7 +690,7 @@ function viewSadasya(){
         confirmBtn("सबको पूरा एक्सेस दें","ghost",()=>save(d=>{(d.members||[]).forEach(x=>{if(isCurrent(x))x.fullAccess=true})},"सबको पूरा एक्सेस मिला")),
         confirmBtn("सबका पूरा एक्सेस हटाएँ","danger",()=>save(d=>{(d.members||[]).forEach(x=>{x.fullAccess=false})},"अब सबको सिर्फ़ अपना हिसाब दिखेगा"))))));
     const withLogin=active.filter(m=>S.logins[m.id]).length;
-    out.push(h("p",{class:"card small"},"लॉगिन: "+withLogin+" / "+active.length+" सदस्यों का बना है। हर सदस्य का मोबाइल नंबर डालकर \"लॉगिन बनाएँ\" दबाएँ, फिर WhatsApp से उन्हें PIN भेजें।"));
+    out.push(h("p",{class:"card small"},"लॉगिन: "+withLogin+" / "+active.length+" सदस्यों का बना है। हर सदस्य का मोबाइल नंबर डालकर \"लॉगिन बनाएँ\" दबाएँ, फिर \"PIN शेयर करें\" से उन्हें PIN भेजें।"));
   }
   out.push(h("section",null,h("h2",null,"सदस्य ("+active.length+")"),active.length?h("div",{class:"list"},active.map(memberRow)):h("div",{class:"empty"},"अभी कोई सदस्य नहीं")));
   if(gone.length){
@@ -779,7 +779,7 @@ function memberRow(m){
     else if(login)loginLine=h("div",{style:"margin-top:6px"},
       h("div",{class:"meta"},"🔐 लॉगिन: "+login.phone+" · PIN "+login.pin),
       h("div",{class:"actions",style:"justify-content:flex-start;margin-top:4px"},
-        h("a",{class:"btn small okb",href:waLink(m,login),target:"_blank",rel:"noopener",style:"text-decoration:none"},"WhatsApp पर PIN भेजें"),
+        waBtn(pinText(m,login),"📤 PIN शेयर करें"),
         confirmBtn("नया PIN","ghost",()=>changePin(m)),
         confirmBtn("लॉगिन बंद करें","danger",()=>removeLogin(m))));
     else if(cur)loginLine=h("div",{class:"actions",style:"justify-content:flex-start;margin-top:6px"},
@@ -792,6 +792,7 @@ function memberRow(m){
 }
 
 // ----- expenses -----
+function billsOf(e){return Array.isArray(e.bills)?e.bills:(e.billId?[e.billId]:[])}
 function viewKharcha(){
   const out=[];const list=(D().expenses||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
   const t=totals();
@@ -799,17 +800,19 @@ function viewKharcha(){
     const date=h("input",{type:"date",value:today(),required:true});
     const desc=h("input",{placeholder:"किस चीज़ पर खर्च",required:true});
     const amt=h("input",{type:"number",min:"1",placeholder:"राशि",inputmode:"numeric",required:true});
-    const bill=h("input",{type:"file",accept:"image/*"});
+    const bill=h("input",{type:"file",accept:"image/*",multiple:true});
     const btn=h("button",{class:"btn",type:"submit"},"खर्च जोड़ें");
     out.push(h("section",null,h("h2",null,"खर्च लिखें"),
       h("form",{class:"f",onsubmit:async e=>{e.preventDefault();const a=Number(amt.value);const ds=desc.value.trim();if(!ds||!(a>0))return;
-        const id=uid();let billId=null;
-        if(bill.files[0]){btn.disabled=true;btn.textContent="बिल अपलोड हो रहा है…";
-          try{billId=await uploadBill(bill.files[0],id)}catch(err){console.error(err);btn.disabled=false;btn.textContent="खर्च जोड़ें";toast("बिल अपलोड नहीं हुआ");return}}
-        save(d=>{d.expenses=d.expenses||[];d.expenses.push({id,date:date.value,desc:ds,amount:a,billId})},"खर्च लिख दिया")}},
+        const id=uid();let ids=[];const fl=[...bill.files];
+        if(fl.length){btn.disabled=true;
+          try{ids=await uploadMany(fl,id,(i,n)=>{btn.textContent="बिल "+i+"/"+n+" अपलोड हो रहा है…"})}
+          catch(err){console.error(err);btn.disabled=false;btn.textContent="खर्च जोड़ें";toast("बिल अपलोड नहीं हुआ");return}}
+        save(d=>{d.expenses=d.expenses||[];d.expenses.push({id,date:date.value,desc:ds,amount:a,bills:ids,billId:null})},"खर्च लिख दिया")}},
         h("label",null,"विवरण",desc),
         h("div",{class:"two"},h("label",null,"तारीख़",date),h("label",null,"राशि (₹)",amt)),
-        h("label",null,"बिल की फ़ोटो (ज़रूरी नहीं)",bill),
+        h("label",null,"बिल की फ़ोटो (ज़रूरी नहीं, एक साथ कई चुन सकते हैं)",bill),
+        h("p",{class:"small muted",style:"margin:0"},"बाद में भी हर खर्च में \"📎 बिल जोड़ें\" से और फ़ोटो जोड़ सकते हैं।"),
         h("div",null,btn))));
   }
   out.push(h("section",null,h("h2",null,"सारे खर्च"),
@@ -818,45 +821,45 @@ function viewKharcha(){
   return out;
 }
 function expenseRow(e){
+  const bills=billsOf(e);
   if(S.admin&&S.expEdit===e.id){
     const date=h("input",{type:"date",value:e.date,required:true});
     const desc=h("input",{value:e.desc,required:true});
     const amt=h("input",{type:"number",min:"1",value:e.amount,inputmode:"numeric",required:true});
-    const bill=h("input",{type:"file",accept:"image/*"});
     const btn=h("button",{class:"btn",type:"submit"},"सेव करें");
-    return h("form",{class:"f",style:"margin:10px 0",onsubmit:async ev=>{ev.preventDefault();
+    return h("form",{class:"f",style:"margin:10px 0",onsubmit:ev=>{ev.preventDefault();
       const a=Number(amt.value);const ds=desc.value.trim();if(!ds||!(a>0)||!date.value)return;
-      let billId=e.billId||null;const old=e.billId;
-      if(bill.files[0]){btn.disabled=true;btn.textContent="बिल अपलोड हो रहा है…";
-        try{billId=await uploadBill(bill.files[0],e.id)}catch(err){console.error(err);btn.disabled=false;btn.textContent="सेव करें";toast("बिल अपलोड नहीं हुआ");return}}
       S.expEdit=null;
-      save(d=>{const x=d.expenses.find(y=>y.id===e.id);if(x){x.date=date.value;x.desc=ds;x.amount=a;x.billId=billId}},"खर्च सुधार दिया");
-      if(old&&billId!==old)deleteDoc(doc(db,"bills",old)).catch(()=>{});
+      save(d=>{const x=d.expenses.find(y=>y.id===e.id);if(x){x.date=date.value;x.desc=ds;x.amount=a}},"खर्च सुधार दिया");
     }},
       h("div",{style:"font-weight:700"},"खर्च सुधारें"),
       h("label",null,"विवरण",desc),
       h("div",{class:"two"},h("label",null,"तारीख़",date),h("label",null,"राशि (₹)",amt)),
-      h("label",null,e.billId?"बिल बदलना हो तो नई फ़ोटो चुनें (वरना ख़ाली छोड़ें)":"बिल की फ़ोटो (ज़रूरी नहीं)",bill),
+      h("p",{class:"small muted",style:"margin:0"},"बिल की फ़ोटो जोड़ने के लिए \"📎 बिल जोड़ें\" और हटाने के लिए फ़ोटो खोलकर \"यह फ़ोटो हटाएँ\" दबाएँ।"),
       h("div",{class:"actions",style:"justify-content:flex-start"},btn,
         h("button",{class:"btn ghost",type:"button",onclick:()=>{S.expEdit=null;render(true)}},"रद्द करें")));
   }
-  const acts=[h("span",{class:"amt minus"},rs(e.amount))];
-  if(e.billId)acts.push(h("button",{class:"btn small ghost",type:"button",onclick:()=>showBill(e.billId,S.admin?()=>{
-    save(d=>{const x=d.expenses.find(y=>y.id===e.id);if(x)x.billId=null},"बिल हटाया");deleteDoc(doc(db,"bills",e.billId)).catch(()=>{})}:null)},"🧾 बिल देखें"));
+  const billBtns=bills.map((id,i)=>h("button",{class:"btn small ghost",type:"button",onclick:()=>showBill(id,S.admin?()=>{
+      save(d=>{const x=d.expenses.find(y=>y.id===e.id);if(x){x.bills=billsOf(x).filter(b=>b!==id);x.billId=null}},"बिल की फ़ोटो हटाई");deleteDoc(doc(db,"bills",id)).catch(()=>{})}:null)},
+    "🧾 "+(bills.length>1?"बिल "+(i+1):"बिल देखें")));
+  const acts=[];
   if(S.admin){
-    if(!e.billId){
-      const f=h("input",{type:"file",accept:"image/*",hidden:true,onchange:async ev=>{
-        const file=ev.target.files[0];if(!file)return;toast("बिल अपलोड हो रहा है…");
-        try{const billId=await uploadBill(file,e.id);save(d=>{const x=d.expenses.find(y=>y.id===e.id);if(x)x.billId=billId},"बिल जुड़ गया")}catch(_){toast("बिल अपलोड नहीं हुआ")}
-      }});
-      acts.push(f,h("button",{class:"btn small ghost",type:"button",onclick:()=>f.click()},"बिल जोड़ें"));
-    }
-    acts.push(h("button",{class:"btn small ghost",type:"button",onclick:()=>{S.expEdit=e.id;render(true)}},"सुधारें"));
-    acts.push(confirmBtn("हटाएँ","danger",()=>{save(d=>{d.expenses=d.expenses.filter(x=>x.id!==e.id)},"खर्च हटाया");if(e.billId)deleteDoc(doc(db,"bills",e.billId)).catch(()=>{})}));
+    const st=h("span",{class:"meta"});
+    const f=h("input",{type:"file",accept:"image/*",multiple:true,hidden:true,onchange:async ev=>{
+      const fl=[...ev.target.files];if(!fl.length)return;
+      try{const ids=await uploadMany(fl,e.id,(i,n)=>{st.textContent="फ़ोटो "+i+"/"+n+" अपलोड हो रही है…"});
+        save(d=>{const x=d.expenses.find(y=>y.id===e.id);if(x){x.bills=billsOf(x).concat(ids);x.billId=null}},ids.length+" बिल फ़ोटो जुड़ गईं")}
+      catch(_){st.textContent="";toast("बिल अपलोड नहीं हुआ")}
+    }});
+    acts.push(f,h("button",{class:"btn small ghost",type:"button",onclick:()=>f.click()},"📎 बिल जोड़ें"),
+      h("button",{class:"btn small ghost",type:"button",onclick:()=>{S.expEdit=e.id;render(true)}},"सुधारें"),
+      confirmBtn("हटाएँ","danger",()=>{save(d=>{d.expenses=d.expenses.filter(x=>x.id!==e.id)},"खर्च हटाया");bills.forEach(id=>deleteDoc(doc(db,"bills",id)).catch(()=>{}))}),st);
   }
-  return h("div",{class:"item",style:"flex-wrap:wrap"},
-    h("div",{class:"main"},h("div",{class:"title",text:e.desc}),h("div",{class:"meta"},dateLabel(e.date))),
-    h("div",{class:"actions"},acts));
+  return h("div",{class:"item",style:"flex-wrap:wrap;align-items:flex-start"},
+    h("div",{class:"main"},h("div",{class:"title",text:e.desc}),h("div",{class:"meta"},dateLabel(e.date)+(bills.length?" · "+bills.length+" बिल फ़ोटो":"")),
+      billBtns.length?h("div",{class:"actions",style:"justify-content:flex-start;margin-top:6px"},billBtns):null,
+      acts.length?h("div",{class:"actions",style:"justify-content:flex-start;margin-top:6px"},acts):null),
+    h("span",{class:"amt minus"},rs(e.amount)));
 }
 
 // ----- meetings & notices -----
@@ -900,10 +903,10 @@ function meetingCard(x,highlight){
     h("div",{class:"small muted",style:"margin-bottom:4px"},"लिखित निर्णय / कार्यवाही की फ़ोटो"),
     h("div",{class:"actions",style:"justify-content:flex-start"},files.map((id,i)=>h("button",{class:"btn small ghost",type:"button",
       onclick:()=>showBill(id,S.admin?()=>{save(d=>{const m=d.meetings.find(y=>y.id===x.id);if(m)m.files=(m.files||[]).filter(f=>f!==id)},"फ़ोटो हटाई");deleteDoc(doc(db,"bills",id)).catch(()=>{})}:null)},"📄 पेज "+(i+1))))));
-  if(!S.admin)card.append(h("div",{class:"actions",style:"margin-top:10px;justify-content:flex-start"},waBtn(meetingShareText(x),"WhatsApp पर भेजें")));
+  if(!S.admin)card.append(h("div",{class:"actions",style:"margin-top:10px;justify-content:flex-start"},waBtn(meetingShareText(x))));
   if(S.admin){
     const st=h("span",{class:"meta"});
-    card.append(h("div",{class:"actions",style:"margin-top:10px;justify-content:flex-start"},waBtn(meetingShareText(x),"WhatsApp पर बैठक की सूचना भेजें")));
+    card.append(h("div",{class:"actions",style:"margin-top:10px;justify-content:flex-start"},waBtn(meetingShareText(x),"📤 बैठक की सूचना शेयर करें")));
     const fi=h("input",{type:"file",accept:"image/*",multiple:true,hidden:true,onchange:async ev=>{
       const fl=[...ev.target.files];if(!fl.length)return;
       try{const ids=await uploadMany(fl,x.id,(i,n)=>{st.textContent="फ़ोटो "+i+"/"+n+" अपलोड हो रही है…"});
@@ -948,8 +951,20 @@ function viewBaithak(){
   return out;
 }
 function appUrl(){return location.origin+location.pathname}
-function waShareLink(text){return "https://wa.me/?text="+encodeURIComponent(text)}
-function waBtn(text,label){return h("a",{class:"btn small okb",href:waShareLink(text),target:"_blank",rel:"noopener",style:"text-decoration:none"},label||"WhatsApp पर भेजें")}
+function isAndroid(){return /Android/i.test(navigator.userAgent||"")}
+function waUrl(text,phone){
+  const q=(phone?"phone="+phone+"&":"")+"text="+encodeURIComponent(text);
+  const web="https://wa.me/"+(phone||"")+"?text="+encodeURIComponent(text);
+  if(isAndroid())return "intent://send?"+q+"#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url="+encodeURIComponent(web)+";end";
+  return web;
+}
+function waShareLink(text){return waUrl(text)}
+async function copyText(t){try{await navigator.clipboard.writeText(t);toast("मैसेज कॉपी हो गया, अब जहाँ चाहें पेस्ट करें")}catch(_){toast("शेयर नहीं हो सका")}}
+async function shareText(t){
+  if(navigator.share){try{await navigator.share({text:t})}catch(e){if(!e||e.name!=="AbortError")copyText(t)}}
+  else copyText(t);
+}
+function waBtn(text,label){return h("button",{class:"btn small okb",type:"button",onclick:()=>shareText(text)},label||"📤 शेयर करें")}
 function noticeShareText(n){return "📢 *"+(D().name||"समिति")+"*\nसूचना · "+dateLabel(n.date)+"\n\n"+n.text+"\n\nऐप में देखें: "+appUrl()}
 function meetingShareText(x){
   let t="🙏 *"+(D().name||"समिति")+"*\n*बैठक की सूचना*\n\n📅 "+dateLabel(x.date)+(x.time?", "+x.time+" बजे":"");
