@@ -115,6 +115,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-vis
 .namebtn:hover{text-decoration-color:var(--haldi)}
 .pill.post{background:var(--head);color:var(--head-ink);margin-left:8px;font-size:.78rem;vertical-align:2px}
 .postsel{width:auto;padding:5px 8px;font-size:.88rem;border-radius:10px}
+.callbtn{display:inline-grid;place-items:center;width:30px;height:30px;margin-left:8px;border-radius:50%;background:var(--ok-soft);border:1px solid var(--ok);text-decoration:none;font-size:.95rem;vertical-align:middle;line-height:1}
 .namebtn .chev{color:var(--muted);text-decoration:none;display:inline-block}
 .mlist .yearhead{padding:8px 16px;background:var(--paper);font-weight:700;border-top:1px solid var(--line);color:var(--muted)}
 .mlist .yearhead:first-child{border-top:0}
@@ -325,7 +326,7 @@ function viewSaransh(){
   const totalDue=dues.reduce((t,x)=>t+x[1].due,0);
   out.push(h("section",null,h("h2",null,"किसका कितना बाकी"),
     dues.length?h("div",{class:"list"},dues.map(([m,s])=>h("div",{class:"item"},
-      h("div",{class:"main"},h("div",{class:"title"},nameBtn(m)),h("div",{class:"meta"},s.paidMonths+" / "+s.months+" महीने जमा")),
+      h("div",{class:"main"},h("div",{class:"title"},nameBtn(m),callBtn(m)),h("div",{class:"meta"},s.paidMonths+" / "+s.months+" महीने जमा")),
       h("span",{class:"pill due"},rs(s.due)+" बाकी")))):h("div",{class:"empty"},"सबका हिसाब साफ़ है")));
   if(S.admin){out.push(reportSection());out.push(settingsForm());out.push(logoSection());out.push(backupSection())}
   return out;
@@ -341,6 +342,11 @@ function settingsForm(){
     h("form",{class:"f",onsubmit:e=>{e.preventDefault();const n=name.value.trim();if(!n)return;save(d=>{d.name=n},"नाम सेव हो गया")}},
       h("label",null,"समिति का नाम",name),
       h("div",null,h("button",{class:"btn",type:"submit"},"नाम सेव करें"))),
+    h("div",{class:"card",style:"margin-bottom:16px"},
+      h("label",{style:"display:flex;gap:10px;align-items:center;color:var(--ink);font-size:1rem"},
+        h("input",{type:"checkbox",checked:!!D().showCalls,onchange:e=>{const v=e.target.checked;save(d=>{d.showCalls=v},v?"पूरी पहुँच वाले सदस्यों को कॉल बटन दिखेगा":"कॉल बटन सिर्फ़ आपको दिखेगा")}}),
+        "पूरी पहुँच वाले सदस्यों को भी 📞 कॉल बटन दिखाएँ"),
+      h("p",{class:"small muted",style:"margin:6px 0 0"},"चालू करने पर वे दूसरे सदस्यों के मोबाइल नंबर पर कॉल कर सकेंगे। बंद रहने पर कॉल बटन सिर्फ़ आपको दिखेगा।")),
     h("div",{class:"card",style:"margin-bottom:16px"},
       h("div",{style:"font-weight:700;margin-bottom:6px"},"मासिक राशि"),
       h("div",{class:"list"},rates.map((r,i)=>{
@@ -410,7 +416,7 @@ function viewJama(){
   else out.push(h("div",{class:"list"},members.map(x=>{
     const p=paidFor(x.id,m)>0;
     return h("div",{class:"item"},
-      h("div",{class:"main"},h("div",{class:"title"},nameBtn(x)),p&&paidFor(x.id,m)!==amountFor(m)?h("div",{class:"meta"},rs(paidFor(x.id,m))+" जमा"):null),
+      h("div",{class:"main"},h("div",{class:"title"},nameBtn(x),callBtn(x)),p&&paidFor(x.id,m)!==amountFor(m)?h("div",{class:"meta"},rs(paidFor(x.id,m))+" जमा"):null),
       h("button",{class:"toggle "+(p?"paid":"unpaid"),type:"button",disabled:!S.admin,"aria-pressed":p?"true":"false",
         onclick:()=>save(d=>{d.payments=d.payments||{};d.payments[x.id]=d.payments[x.id]||{};
           if(p)delete d.payments[x.id][m];else d.payments[x.id][m]=amountFor(m);
@@ -489,7 +495,7 @@ function viewRequestsAdmin(){
       const mem=(D().members||[]).find(m=>m.id===r.memberId);
       const when=r.at&&r.at.toDate?r.at.toDate():null;
       return h("div",{class:"card req"},
-        h("div",{class:"title",style:"font-weight:700",text:(mem?mem.name:r.memberName)}),
+        h("div",{class:"title",style:"font-weight:700"},(mem?mem.name:r.memberName),mem?callBtn(mem):null),
         h("div",null,rs(r.amount)+" · "+r.method),
         h("div",{class:"meta"},(r.months||[]).map(reqItemLabel).join(", ")),
         r.note?h("div",{class:"meta",text:"टिप्पणी: "+r.note}):null,
@@ -775,7 +781,7 @@ function loanCard(l){
     !l.closed&&c.paid?["ब्याज बाकी",rs(c.baki)]:null].filter(Boolean);
   const card=h("div",{class:"card",style:"margin-bottom:10px;border-left:5px solid "+(l.closed?"var(--ok)":"var(--head)")},
     h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},
-      h("div",{class:"title",style:"font-weight:700"},m&&!limited()?nameBtn(m):memberName(l.memberId)),
+      h("div",{class:"title",style:"font-weight:700"},m&&!limited()?h("span",null,nameBtn(m),callBtn(m)):memberName(l.memberId)),
       l.closed?h("span",{class:"pill ok"},"चुकता"):h("span",{class:"pill due"},"चालू")),
     !l.closed?(()=>{const lines=loanReminderLines(l,false);const st=loanStatus(l);
       return h("div",{style:"margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--haldi-soft)"},
@@ -970,6 +976,9 @@ function viewAay(){
 
 // ----- members -----
 function openMember(id){S.detail=id;S.editing=S.leaving=S.rejoining=null;if(S.view!=="sadasya")location.hash="#sadasya";else{render(true)}window.scrollTo(0,0)}
+function canCall(){return S.admin||(!limited()&&!!D().showCalls)}
+function callBtn(m){const ph=normPhone(m&&m.phone);if(ph.length!==10||!canCall())return null;
+  return h("a",{class:"callbtn",href:"tel:+91"+ph,"aria-label":m.name+" को कॉल करें",title:"कॉल करें",onclick:e=>e.stopPropagation()},"📞")}
 function nameBtn(m,extra){return h("button",{class:"namebtn",type:"button",onclick:()=>openMember(m.id),"aria-label":m.name+" का पूरा हिसाब"},m.name,h("span",{class:"chev","aria-hidden":"true"}," ›"),extra||null)}
 function viewMemberDetail(m){
   const s=memberSummary(m);const ps=periods(m);const amt=amount();
@@ -977,11 +986,11 @@ function viewMemberDetail(m){
   const out=limited()?[]:[h("button",{class:"btn ghost small",type:"button",style:"margin-bottom:14px",onclick:()=>{S.detail=null;render(true);window.scrollTo(0,0)}},"‹ सभी सदस्य")];
   const cur=isCurrent(m);
   out.push(h("section",null,
-    h("h2",{style:"margin-bottom:4px",text:m.name}),
+    h("div",{style:"display:flex;align-items:center;gap:10px;margin-bottom:4px"},h("h2",{style:"margin:0",text:m.name}),callBtn(m)),
     m.post?h("div",{style:"margin-bottom:4px"},postPill(m)):null,
     h("div",{class:"stat-line",style:"margin:6px 0 12px"},
       h("span",{class:"pill "+(cur?"ok":"neutral")},cur?"सक्रिय सदस्य":"समिति छोड़ चुके"),
-      S.admin&&m.phone?h("span",{class:"pill neutral"},"📞 "+m.phone):null,
+      S.admin&&m.phone?h("a",{class:"pill neutral",href:"tel:+91"+normPhone(m.phone),style:"text-decoration:none"},"📞 "+m.phone+" · कॉल करें"):null,
       S.admin&&S.logins[m.id]?h("span",{class:"pill neutral"},"🔐 लॉगिन बना है"):null),
     h("div",{class:"ledger"},
       h("div",{class:"row"},h("span",null,"सदस्यता"),h("span",{style:"text-align:right"},periodText(m))),
@@ -1133,7 +1142,7 @@ function memberRow(m){
       normPhone(m.phone).length===10?h("button",{class:"btn small",type:"button",onclick:()=>createLogin(m)},"लॉगिन बनाएँ"):h("span",{class:"meta"},"लॉगिन के लिए पहले \"बदलें\" से मोबाइल डालें"));
   }
   return h("div",{class:"item"+(cur?"":" left")},
-    h("div",{class:"main"},h("div",{class:"title"},nameBtn(m),postPill(m),S.admin&&m.fullAccess&&isCurrent(m)?h("span",{class:"pill ok",style:"margin-left:6px;font-size:.78rem"},"पूरा एक्सेस"):null),h("div",{class:"meta",text:meta+(S.admin&&m.phone?" · "+m.phone:"")}),
+    h("div",{class:"main"},h("div",{class:"title"},nameBtn(m),callBtn(m),postPill(m),S.admin&&m.fullAccess&&isCurrent(m)?h("span",{class:"pill ok",style:"margin-left:6px;font-size:.78rem"},"पूरा एक्सेस"):null),h("div",{class:"meta",text:meta+(S.admin&&m.phone?" · "+m.phone:"")}),
       S.admin?h("div",{class:"actions",style:"justify-content:flex-start;margin-top:6px"},acts):null,loginLine),
     s.due>0?h("span",{class:"pill due"},rs(s.due)+" बाकी"):h("span",{class:"pill ok"},"साफ़"));
 }
