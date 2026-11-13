@@ -156,13 +156,13 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-vis
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, collection, onSnapshot, setDoc, getDoc, addDoc, deleteDoc, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, collection, onSnapshot, setDoc, getDoc, addDoc, deleteDoc, query, where, orderBy, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, initializeAuth, inMemoryPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const MONTHS=["जनवरी","फ़रवरी","मार्च","अप्रैल","मई","जून","जुलाई","अगस्त","सितंबर","अक्टूबर","नवंबर","दिसंबर"];
 const LOGIN_DOMAIN="samiti-login.app";
 const S={data:null,exists:false,admin:false,user:null,me:null,authReady:false,noAccess:false,loaded:false,error:"",month:curMonth(),monthNow:curMonth(),view:"saransh",
-  requests:[],logins:{},editing:null,leaving:null,rejoining:null,decisionEdit:null,meetEdit:null,loanEdit:null,loanClose:null,rateEdit:null,byajPay:null,aayEdit:null,showClosedLoans:false,expEdit:null,detail:null,showGone:false,busy:{},billCache:{},deferred:false,saving:Promise.resolve(),
+  requests:[],logins:{},editing:null,leaving:null,rejoining:null,decisionEdit:null,meetEdit:null,loanEdit:null,loanClose:null,rateEdit:null,byajPay:null,aayEdit:null,raw:{},log:[],logAll:false,logOpen:false,migrating:false,showClosedLoans:false,expEdit:null,detail:null,showGone:false,busy:{},billCache:{},deferred:false,saving:Promise.resolve(),
   req:{months:[],amount:"",method:"नकद",note:"",sent:false}};
 let db,auth,secAuthInst=null,C=window.SAMITI_CONFIG,subs=[];
 
@@ -232,12 +232,55 @@ function totals(){
 }
 function mainRef(){return doc(db,"samiti","main")}
 
+// ---------- storage: split into several docs ----------
+const PARTS=["logo","expenses","incomes","meetings","notices","loans"];
+const DOC_LIMIT=1000000;
+function partRef(p){return doc(db,"samiti",p)}
+function mainOnly(d){const m=Object.assign({},d);for(const p of PARTS)delete m[p];return m}
+function rebuild(){
+  if(!S.raw.main){S.data=null;return}
+  const d=Object.assign({},S.raw.main);
+  for(const p of PARTS)if(S.raw[p]!==undefined)d[p]=S.raw[p];
+  S.data=d;
+}
+function bytes(o){try{return new TextEncoder().encode(JSON.stringify(o)).length}catch(_){return 0}}
+function partSizes(){
+  const d=S.data||{};const out=[["मुख्य",bytes(mainOnly(d))]];
+  const L={logo:"फ़ोटो",expenses:"खर्च",incomes:"आय",meetings:"बैठक",notices:"सूचना",loans:"ऋण"};
+  for(const p of PARTS)out.push([L[p],bytes({v:d[p]==null?null:d[p]})]);
+  return out.map(([n,b])=>({name:n,bytes:b,pct:Math.min(100,Math.round(b/DOC_LIMIT*1000)/10)}));
+}
+function logId(){return "log-"+new Date().getFullYear()}
 function save(mutate,msg){
   if(!S.admin)return Promise.resolve();
-  const next=clone(S.data);mutate(next);next.updatedAt=Date.now();
+  const prev=S.data;const next=clone(S.data);mutate(next);
   S.data=next;render();
-  S.saving=S.saving.then(()=>setDoc(mainRef(),next)).then(()=>{if(msg)toast(msg)}).catch(e=>{console.error(e);toast("सेव नहीं हुआ, इंटरनेट जाँचें")});
+  const writes=[];
+  const pm=mainOnly(prev||{}),nm=mainOnly(next);delete pm.updatedAt;delete nm.updatedAt;
+  if(JSON.stringify(pm)!==JSON.stringify(nm)){nm.updatedAt=Date.now();nm.splitV=2;writes.push([mainRef(),nm])}
+  for(const p of PARTS)if(JSON.stringify((prev||{})[p])!==JSON.stringify(next[p]))writes.push([partRef(p),{v:next[p]==null?null:next[p]}]);
+  const entry={t:Date.now(),by:(S.user&&S.user.email)||"",msg:msg||"हिसाब में बदलाव"};
+  S.saving=S.saving.then(async()=>{
+    for(const [ref,obj] of writes)await setDoc(ref,obj);
+    if(writes.length)await setDoc(doc(db,"samiti",logId()),{entries:arrayUnion(entry)},{merge:true});
+  }).then(()=>{if(msg)toast(msg)}).catch(e=>{console.error(e);toast("सेव नहीं हुआ, इंटरनेट जाँचें")});
   return S.saving;
+}
+async function migrateIfNeeded(){
+  const m=S.raw.main;if(!S.admin||!m||m.splitV>=2||S.migrating)return;
+  S.migrating=true;
+  try{
+    for(const p of PARTS){
+      if(m[p]===undefined)continue;
+      const ex=await getDoc(partRef(p));
+      if(!ex.exists())await setDoc(partRef(p),{v:m[p]});
+    }
+    const nm=mainOnly(m);nm.splitV=2;nm.updatedAt=Date.now();
+    await setDoc(mainRef(),nm);
+    await setDoc(doc(db,"samiti",logId()),{entries:arrayUnion({t:Date.now(),by:(S.user&&S.user.email)||"",msg:"हिसाब नए तरीके (अलग-अलग पेज) में व्यवस्थित किया गया"})},{merge:true});
+    toast("हिसाब नए तरीके से व्यवस्थित हो गया");
+  }catch(e){console.error(e);toast("व्यवस्थित नहीं हो सका, पेज दोबारा खोलें")}
+  S.migrating=false;
 }
 
 // ---------- images ----------
@@ -296,6 +339,8 @@ function renderTabs(){
 // ---------- views ----------
 function viewSaransh(){
   const t=totals();const out=[];
+  {const br=backupReminder();if(br)out.push(br)}
+  if(S.admin){const mx=Math.max(...partSizes().map(x=>x.pct));if(mx>=80)out.push(h("div",{class:"card",style:"margin-bottom:16px;border-left:5px solid var(--due)"},"⚠️ हिसाब की कोई जगह "+mx+"% भर गई है। सेटिंग में \"जगह कितनी भरी\" देखें।"))}
   out.push(h("section",null,h("div",{class:"ledger"},
     h("div",{class:"row"},h("span",null,"कुल जमा"),h("span",{class:"amt"},rs(t.jama))),
     t.aay?h("div",{class:"row"},h("span",null,"अन्य आय"),h("span",{class:"amt"},"+ "+rs(t.aay))):null,
@@ -328,7 +373,8 @@ function viewSaransh(){
     dues.length?h("div",{class:"list"},dues.map(([m,s])=>h("div",{class:"item"},
       h("div",{class:"main"},h("div",{class:"title"},nameBtn(m),callBtn(m)),h("div",{class:"meta"},s.paidMonths+" / "+s.months+" महीने जमा")),
       h("span",{class:"pill due"},rs(s.due)+" बाकी")))):h("div",{class:"empty"},"सबका हिसाब साफ़ है")));
-  if(S.admin){out.push(reportSection());out.push(settingsForm());out.push(logoSection());out.push(backupSection())}
+  if(!limited())out.push(logSection());
+  if(S.admin){out.push(reportSection());out.push(settingsForm());out.push(logoSection());out.push(storageSection());out.push(backupSection())}
   return out;
 }
 
@@ -377,23 +423,67 @@ function settingsForm(){
         h("p",{class:"small muted",style:"margin:0"},"नई राशि सिर्फ़ चुने गए महीने और उसके बाद के महीनों पर लगेगी। पुराने महीनों का हिसाब पुरानी राशि से ही रहेगा।"),
         h("div",null,h("button",{class:"btn",type:"submit"},"नई राशि लागू करें")))));
 }
+function markBackup(){save(d=>{d.lastBackup=today()},"बैकअप लिया गया")}
+function backupBlob(){return new Blob([JSON.stringify(S.data,null,1)],{type:"application/json"})}
+function backupName(){return "samiti-backup-"+today()+".json"}
+function downloadBackup(){const a=h("a",{href:URL.createObjectURL(backupBlob()),download:backupName()});document.body.append(a);a.click();a.remove();markBackup()}
+async function shareBackup(){
+  const f=new File([backupBlob()],backupName(),{type:"application/json"});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){
+    try{await navigator.share({files:[f],title:backupName()});markBackup();return}
+    catch(e){if(e&&e.name==="AbortError")return}
+  }
+  toast("इस फ़ोन से सीधे शेयर नहीं हुआ, फ़ाइल डाउनलोड हो रही है");downloadBackup();
+}
+function backupButtons(){return h("div",{class:"actions",style:"justify-content:flex-start"},
+  h("button",{class:"btn",type:"button",onclick:shareBackup},"☁️ Google Drive में सेव करें"),
+  h("button",{class:"btn ghost",type:"button",onclick:downloadBackup},"📥 फ़ोन में डाउनलोड करें"))}
+function backupReminder(){
+  if(!S.admin||!S.data)return null;
+  const lb=D().lastBackup;const days=lb?dayDiff(lb,today()):null;
+  if(lb&&days<=30)return null;
+  return h("div",{class:"card",style:"margin-bottom:16px;border-left:5px solid var(--haldi);background:var(--haldi-soft)"},
+    h("div",{style:"font-weight:700;margin-bottom:4px"},"💾 बैकअप लेने का समय"),
+    h("div",{style:"margin-bottom:8px"},lb?"पिछला बैकअप "+days+" दिन पहले ("+dateLabel(lb)+") लिया था। हर महीने एक बार बैकअप ज़रूर लें।":"अभी तक कोई बैकअप नहीं लिया गया। एक बार बैकअप ज़रूर लें।"),
+    backupButtons());
+}
 function backupSection(){
   const file=h("input",{type:"file",accept:"application/json,.json"});
+  const lb=D().lastBackup;
   return h("section",null,h("h2",null,"बैकअप"),
     h("div",{class:"card"},
-      h("p",{style:"margin-top:0"},"हर महीने एक बार बैकअप फ़ाइल फ़ोन में सेव कर लें।"),
-      h("div",{class:"actions",style:"justify-content:flex-start"},
-        h("button",{class:"btn",type:"button",onclick:()=>{
-          const blob=new Blob([JSON.stringify(S.data,null,1)],{type:"application/json"});
-          const a=h("a",{href:URL.createObjectURL(blob),download:"samiti-backup-"+today()+".json"});document.body.append(a);a.click();a.remove();
-        }},"बैकअप डाउनलोड करें")),
+      h("p",{style:"margin-top:0"},lb?"पिछला बैकअप: "+dateLabel(lb):"अभी तक कोई बैकअप नहीं लिया गया।"),
+      backupButtons(),
+      h("p",{class:"small muted"},"\"Google Drive में सेव करें\" दबाने पर शेयर की सूची खुलेगी, उसमें \"Drive\" चुनें। Drive न दिखे तो फ़ोन में डाउनलोड करके बाद में Drive में डालें।"),
       h("p",{class:"small muted"},"बैकअप से वापस लाना (अभी का सारा हिसाब बदल जाएगा):"),
       file,
       h("div",{class:"actions",style:"justify-content:flex-start;margin-top:8px"},confirmBtn("बैकअप से वापस लाएँ","danger",async()=>{
         const f=file.files[0];if(!f){toast("पहले फ़ाइल चुनें");return}
-        try{const d=JSON.parse(await f.text());if(!d||!Array.isArray(d.members))throw 0;save(x=>{for(const k of Object.keys(x))delete x[k];Object.assign(x,d)},"बैकअप से हिसाब वापस आ गया")}
+        try{const d=JSON.parse(await f.text());if(!d||!Array.isArray(d.members))throw 0;save(x=>{for(const k of Object.keys(x))delete x[k];Object.assign(x,d)},"बैकअप से हिसाब वापस लाया गया")}
         catch(_){toast("यह सही बैकअप फ़ाइल नहीं है")}
       }))));
+}
+function storageSection(){
+  const sz=partSizes();const mx=Math.max(...sz.map(x=>x.pct));
+  return h("section",null,h("h2",null,"जगह कितनी भरी"),
+    h("div",{class:"card"},
+      sz.map(x=>h("div",{style:"display:grid;grid-template-columns:70px 1fr 52px;gap:10px;align-items:center;margin:6px 0"},
+        h("span",null,x.name),
+        h("div",{style:"height:10px;border-radius:99px;background:var(--line);overflow:hidden"},h("div",{style:"height:100%;width:"+Math.max(x.pct,1)+"%;background:"+(x.pct>=80?"var(--due)":x.pct>=60?"var(--haldi)":"var(--ok)")})),
+        h("span",{class:"small",style:"text-align:right"},x.pct+"%"))),
+      h("p",{class:"small "+(mx>=80?"minus":"muted"),style:"margin-bottom:0"},mx>=80?"⚠️ कोई हिस्सा 80% से ज़्यादा भर गया है। मुझसे (Claude से) पूछकर उसे साल के हिसाब से बँटवा लें।":"✓ सब ठीक है। हर हिस्से की अपनी 1 MB जगह है, फ़ोटो अलग 1 GB जगह में हैं।")));
+}
+function logSection(){
+  const list=(S.log||[]).slice().sort((a,b)=>b.t-a.t);
+  if(!list.length&&!S.admin)return null;
+  const shown=S.logAll?list:list.slice(0,15);
+  const fmt=t=>{const d=new Date(t);return d.getDate()+" "+MONTHS[d.getMonth()]+" "+d.getFullYear()+", "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")};
+  return h("section",null,h("details",{open:S.logOpen?true:null,ontoggle:e=>{S.logOpen=e.target.open}},
+    h("summary",{style:"cursor:pointer;font-family:'Tiro Devanagari Hindi',Georgia,serif;font-size:1.3rem;margin-bottom:10px"},"📜 बदलाव का इतिहास ("+list.length+")"),
+    list.length?h("div",{class:"list"},shown.map(x=>h("div",{class:"item",style:"align-items:flex-start"},
+      h("div",{class:"main"},h("div",{style:"overflow-wrap:anywhere",text:x.msg}),h("div",{class:"meta"},fmt(x.t)+" · अध्यक्ष"))))):h("div",{class:"empty"},"अभी कोई बदलाव दर्ज नहीं"),
+    list.length>15&&!S.logAll?h("button",{class:"btn small ghost",type:"button",style:"margin-top:8px",onclick:()=>{S.logAll=true;render(true)}},"सारे "+list.length+" देखें"):null,
+    h("p",{class:"small muted"},"इस साल ("+new Date().getFullYear()+") के बदलाव। हर बदलाव अपने आप दर्ज होता है, ऐप में इसे मिटाने का कोई बटन नहीं है।")));
 }
 
 function viewJama(){
@@ -513,7 +603,7 @@ function viewRequestsAdmin(){
               d.payments=d.payments||{};const p=d.payments[r.memberId]=d.payments[r.memberId]||{};
               months.forEach((mo,i)=>{const already=Number(p[mo])||0;const need=Math.max(0,amountFor(mo)-already);
                 const give=i===months.length-1?left:Math.min(need,left);if(give>0)p[mo]=already+give;left-=give;});
-            });
+            },(mem?mem.name:r.memberName)+": "+rs(r.amount)+" जमा की सूचना मंज़ूर ("+(r.months||[]).map(reqItemLabel).join(", ")+")");
             try{await deleteDoc(doc(db,"requests",r.id));toast((mem?mem.name:"")+": "+rs(r.amount)+" जमा हुआ")}catch(_){toast("सूचना हटाई नहीं जा सकी")}
           }},"मंज़ूर करें")));
     }):h("div",{class:"empty"},"कोई नई सूचना नहीं"))];
@@ -1426,7 +1516,10 @@ function render(force){
 // ---------- boot ----------
 function stopSubs(){subs.forEach(u=>{try{u()}catch(_){}});subs=[]}
 function startData(){
-  subs.push(onSnapshot(mainRef(),snap=>{S.loaded=true;S.exists=snap.exists();S.data=snap.exists()?snap.data():null;render()},
+  S.raw={};S.log=[];
+  for(const p of PARTS)subs.push(onSnapshot(partRef(p),snap=>{if(snap.exists())S.raw[p]=snap.data().v;else delete S.raw[p];rebuild();render()},e=>console.error(e)));
+  subs.push(onSnapshot(doc(db,"samiti",logId()),snap=>{S.log=snap.exists()?(snap.data().entries||[]):[];render()},e=>console.error(e)));
+  subs.push(onSnapshot(mainRef(),snap=>{S.loaded=true;S.exists=snap.exists();S.raw.main=snap.exists()?snap.data():null;rebuild();render();if(S.admin)S.saving=S.saving.then(migrateIfNeeded)},
     err=>{console.error(err);S.loaded=true;S.error="डेटा लोड नहीं हुआ। इंटरनेट जाँचें और पेज दोबारा खोलें।";render(true)}));
   if(S.admin){
     subs.push(onSnapshot(query(collection(db,"requests"),orderBy("at","asc")),qs=>{S.requests=qs.docs.map(d=>Object.assign({id:d.id},d.data()));render()},e=>console.error(e)));
