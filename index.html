@@ -300,6 +300,10 @@ function viewSaransh(){
     h("div",{class:"row"},h("span",null,"कुल खर्च"),h("span",{class:"amt minus"},"− "+rs(t.kharch))),
     t.loanOut?h("div",{class:"row"},h("span",null,"ऋण में दिया (बाकी)"),h("span",{class:"amt minus"},"− "+rs(t.loanOut))):null,
     h("div",{class:"row total"},h("span",null,t.loanOut?"हाथ में नकद":"बचे हुए पैसे"),h("span",{class:"amt"},rs(t.bacha))))));
+  {const dl=(D().members||[]).map(m=>memberSummary(m).due).filter(x=>x>0);const td=dl.reduce((a,b)=>a+b,0);
+   out.push(h("section",{style:"margin-top:-16px"},h("div",{class:"ledger"},h("div",{class:"row"},
+     h("span",null,"अभी सभी सदस्यों का कुल जमा बाकी",dl.length?h("div",{class:"small muted"},dl.length+" सदस्यों से लेना है"):null),
+     h("span",{class:"amt"+(td?" minus":""),style:"font-size:1.35rem"},rs(td))))))}
   if(S.admin&&S.requests.length)out.push(h("section",null,h("a",{href:"#anurodh",class:"card req",style:"display:block;color:inherit;text-decoration:none"},
     S.requests.length+" सदस्यों ने पैसे जमा करने की सूचना भेजी है। देखकर मंज़ूर करें ›")));
   const active=(D().members||[]).filter(m=>memberActiveIn(m,S.monthNow));
@@ -318,7 +322,6 @@ function viewSaransh(){
   const dues=(D().members||[]).map(m=>[m,memberSummary(m)]).filter(x=>x[1].due>0).sort((a,b)=>b[1].due-a[1].due);
   const totalDue=dues.reduce((t,x)=>t+x[1].due,0);
   out.push(h("section",null,h("h2",null,"किसका कितना बाकी"),
-    h("div",{class:"ledger",style:"margin-bottom:10px"},h("div",{class:"row total"},h("span",null,"सभी सदस्यों का कुल बाकी"+(dues.length?" ("+dues.length+" सदस्य)":"")),h("span",{class:"amt"+(totalDue?" minus":"")},rs(totalDue)))),
     dues.length?h("div",{class:"list"},dues.map(([m,s])=>h("div",{class:"item"},
       h("div",{class:"main"},h("div",{class:"title"},nameBtn(m)),h("div",{class:"meta"},s.paidMonths+" / "+s.months+" महीने जमा")),
       h("span",{class:"pill due"},rs(s.due)+" बाकी")))):h("div",{class:"empty"},"सबका हिसाब साफ़ है")));
