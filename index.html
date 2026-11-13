@@ -344,9 +344,9 @@ function settingsForm(){
       h("div",null,h("button",{class:"btn",type:"submit"},"नाम सेव करें"))),
     h("div",{class:"card",style:"margin-bottom:16px"},
       h("label",{style:"display:flex;gap:10px;align-items:center;color:var(--ink);font-size:1rem"},
-        h("input",{type:"checkbox",checked:!!D().showCalls,onchange:e=>{const v=e.target.checked;save(d=>{d.showCalls=v},v?"पूरी पहुँच वाले सदस्यों को कॉल बटन दिखेगा":"कॉल बटन सिर्फ़ आपको दिखेगा")}}),
+        h("input",{type:"checkbox",checked:D().showCalls!==false,onchange:e=>{const v=e.target.checked;save(d=>{d.showCalls=v},v?"पूरी पहुँच वाले सदस्यों को कॉल बटन दिखेगा":"कॉल बटन सिर्फ़ आपको दिखेगा")}}),
         "पूरी पहुँच वाले सदस्यों को भी 📞 कॉल बटन दिखाएँ"),
-      h("p",{class:"small muted",style:"margin:6px 0 0"},"चालू करने पर वे दूसरे सदस्यों के मोबाइल नंबर पर कॉल कर सकेंगे। बंद रहने पर कॉल बटन सिर्फ़ आपको दिखेगा।")),
+      h("p",{class:"small muted",style:"margin:6px 0 0"},"यह पहले से चालू है। टिक हटाने पर कॉल बटन सिर्फ़ आपको दिखेगा।")),
     h("div",{class:"card",style:"margin-bottom:16px"},
       h("div",{style:"font-weight:700;margin-bottom:6px"},"मासिक राशि"),
       h("div",{class:"list"},rates.map((r,i)=>{
@@ -976,7 +976,7 @@ function viewAay(){
 
 // ----- members -----
 function openMember(id){S.detail=id;S.editing=S.leaving=S.rejoining=null;if(S.view!=="sadasya")location.hash="#sadasya";else{render(true)}window.scrollTo(0,0)}
-function canCall(){return S.admin||(!limited()&&!!D().showCalls)}
+function canCall(){return S.admin||(!limited()&&D().showCalls!==false)}
 function callBtn(m){const ph=normPhone(m&&m.phone);if(ph.length!==10||!canCall())return null;
   return h("a",{class:"callbtn",href:"tel:+91"+ph,"aria-label":m.name+" को कॉल करें",title:"कॉल करें",onclick:e=>e.stopPropagation()},"📞")}
 function nameBtn(m,extra){return h("button",{class:"namebtn",type:"button",onclick:()=>openMember(m.id),"aria-label":m.name+" का पूरा हिसाब"},m.name,h("span",{class:"chev","aria-hidden":"true"}," ›"),extra||null)}
