@@ -161,7 +161,7 @@ import { getAuth, initializeAuth, inMemoryPersistence, GoogleAuthProvider, signI
 const MONTHS=["जनवरी","फ़रवरी","मार्च","अप्रैल","मई","जून","जुलाई","अगस्त","सितंबर","अक्टूबर","नवंबर","दिसंबर"];
 const LOGIN_DOMAIN="samiti-login.app";
 const S={data:null,exists:false,admin:false,user:null,me:null,authReady:false,noAccess:false,loaded:false,error:"",month:curMonth(),monthNow:curMonth(),view:"saransh",
-  requests:[],logins:{},editing:null,leaving:null,rejoining:null,decisionEdit:null,meetEdit:null,loanEdit:null,loanClose:null,rateEdit:null,byajPay:null,showClosedLoans:false,expEdit:null,detail:null,showGone:false,busy:{},billCache:{},deferred:false,saving:Promise.resolve(),
+  requests:[],logins:{},editing:null,leaving:null,rejoining:null,decisionEdit:null,meetEdit:null,loanEdit:null,loanClose:null,rateEdit:null,byajPay:null,aayEdit:null,showClosedLoans:false,expEdit:null,detail:null,showGone:false,busy:{},billCache:{},deferred:false,saving:Promise.resolve(),
   req:{months:[],amount:"",method:"नकद",note:"",sent:false}};
 let db,auth,secAuthInst=null,C=window.SAMITI_CONFIG,subs=[];
 
@@ -226,7 +226,8 @@ function totals(){
   for(const mid in p)for(const k in p[mid])jama+=Number(p[mid][k])||0;
   let kharch=0;for(const e of D().expenses||[])kharch+=Number(e.amount)||0;
   let loanOut=0,byaj=0;for(const l of D().loans||[]){byaj+=byajPaidSum(l);if(l.closed)byaj+=(Number(l.closed.amount)||0)-(Number(l.amount)||0);else loanOut+=Number(l.amount)||0}
-  return {jama,kharch,byaj,loanOut,bacha:jama+byaj-kharch-loanOut};
+  let aay=0;for(const x of D().incomes||[])aay+=Number(x.amount)||0;
+  return {jama,kharch,byaj,loanOut,aay,bacha:jama+aay+byaj-kharch-loanOut};
 }
 function mainRef(){return doc(db,"samiti","main")}
 
@@ -279,7 +280,7 @@ async function showBill(id,onDelete){
 // ---------- routing ----------
 function meMember(){return (D().members||[]).find(m=>m.id===S.me)}
 function limited(){if(S.admin)return false;const m=meMember();return !(m&&m.fullAccess)}
-const VIEWS=()=>limited()?[["mera","मेरा हिसाब"],["anurodh","पैसे जमा बताएँ"]]:[["saransh","सारांश"],["jama","मासिक जमा"],["anurodh",S.admin?"अनुरोध":"पैसे जमा बताएँ"],["sadasya","सदस्य"],["kharcha","खर्च"],["rin","ऋण"],["baithak","बैठक"],["suchna","सूचना"]];
+const VIEWS=()=>limited()?[["mera","मेरा हिसाब"],["anurodh","पैसे जमा बताएँ"]]:[["saransh","सारांश"],["jama","मासिक जमा"],["anurodh",S.admin?"अनुरोध":"पैसे जमा बताएँ"],["sadasya","सदस्य"],["kharcha","खर्च"],["aay","आय"],["rin","ऋण"],["baithak","बैठक"],["suchna","सूचना"]];
 function readHash(){const v=(location.hash||"").slice(1);S.view=VIEWS().some(x=>x[0]===v)?v:VIEWS()[0][0]}
 window.addEventListener("hashchange",()=>{const prev=S.view;readHash();if(S.view!=="sadasya")S.detail=null;else if(prev==="sadasya"&&!S._keep)S.detail=null;render(true);window.scrollTo(0,0)});
 function renderTabs(){
@@ -296,6 +297,7 @@ function viewSaransh(){
   const t=totals();const out=[];
   out.push(h("section",null,h("div",{class:"ledger"},
     h("div",{class:"row"},h("span",null,"कुल जमा"),h("span",{class:"amt"},rs(t.jama))),
+    t.aay?h("div",{class:"row"},h("span",null,"अन्य आय"),h("span",{class:"amt"},"+ "+rs(t.aay))):null,
     t.byaj?h("div",{class:"row"},h("span",null,"ब्याज से कमाई"),h("span",{class:"amt"},"+ "+rs(t.byaj))):null,
     h("div",{class:"row"},h("span",null,"कुल खर्च"),h("span",{class:"amt minus"},"− "+rs(t.kharch))),
     t.loanOut?h("div",{class:"row"},h("span",null,"ऋण में दिया (बाकी)"),h("span",{class:"amt minus"},"− "+rs(t.loanOut))):null,
@@ -618,13 +620,15 @@ function printReport(m){
     const rows=monthsBetween(periods(m)[0].from,S.monthNow).map(mo=>{const st=monthStatus(m,mo);return [monthLabel(mo),st.label,st.paid?rs(st.paid):"-"]});
     area.append(h("h2",null,"महीनेवार हिसाब"),table(["महीना","स्थिति","जमा"],rows,[2]));
   }else{
-    area.append(h("h2",null,"सारांश"),table(["विवरण","राशि"],[["कुल जमा",rs(t.jama)],["ब्याज से कमाई",rs(t.byaj)],["कुल खर्च",rs(t.kharch)],["ऋण में दिया (बाकी मूल)",rs(t.loanOut)],["हाथ में नकद",rs(t.bacha)],["मासिक राशि (अभी)",rs(amount())]],[1]));
+    area.append(h("h2",null,"सारांश"),table(["विवरण","राशि"],[["कुल जमा",rs(t.jama)],["अन्य आय",rs(t.aay)],["ब्याज से कमाई",rs(t.byaj)],["कुल खर्च",rs(t.kharch)],["ऋण में दिया (बाकी मूल)",rs(t.loanOut)],["हाथ में नकद",rs(t.bacha)],["मासिक राशि (अभी)",rs(amount())]],[1]));
     area.append(h("h2",null,"सदस्य"),table(["नाम","पद","सदस्यता","जमा महीने","कुल जमा","बाकी"],
       sortByPost(d.members||[]).map(x=>{const s=memberSummary(x);return [x.name,x.post||"-",periodText(x),s.paidMonths+" / "+s.months,rs(s.paid),rs(s.due)]}),[3,4,5]));
     const ex=(d.expenses||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
     area.append(h("h2",null,"खर्च"),ex.length?table(["तारीख़","विवरण","राशि"],ex.map(e=>[dateLabel(e.date),e.desc,rs(e.amount)]),[2]):h("p",null,"कोई खर्च नहीं"));
     if((d.skipped||[]).length)area.append(h("h2",null,"छूट वाले महीने"),h("p",null,d.skipped.slice().sort().map(monthLabel).join(", ")));
     const mt=(d.meetings||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+    const ic=(d.incomes||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+    if(ic.length)area.append(h("h2",null,"अन्य आय"),table(["तारीख़","विषय","प्रकार","किससे","राशि"],ic.map(x=>[dateLabel(x.date),x.subject+(x.note?" — "+x.note:""),x.type||"-",x.from||"-",rs(x.amount)]),[4]));
     const ln=(d.loans||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
     if(ln.length)area.append(h("h2",null,"ऋण"),table(["सदस्य","दिया","मूल","दर","स्थिति","ब्याज","कुल"],ln.map(l=>{const c=loanCalc(l);return [memberName(l.memberId),dateLabel(l.date),rs(l.amount),l.rate+"%",l.closed?"चुकता "+dateLabel(l.closed.date):"चालू ("+daysText(c.days)+")",l.closed?rs(l.closed.amount-l.amount+c.paid):rs(c.byaj)+(c.paid?" (जमा "+rs(c.paid)+")":""),rs(l.closed?l.closed.amount:c.total)]}),[2,3,5,6]));
     if(mt.length)area.append(h("h2",null,"बैठकें"),table(["तारीख़","जगह","विषय","निर्णय"],mt.map(x=>[dateLabel(x.date),x.place||"-",x.agenda||"-",x.decision||"-"])));
@@ -642,10 +646,12 @@ function downloadCSV(){
   const months=monthsBetween(first,S.monthNow);
   const esc=v=>{v=v==null?"":String(v);return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const row=a=>a.map(esc).join(",");
-  const lines=[row([d.name||"समिति","रिपोर्ट: "+today()]),row(["कुल जमा",t.jama,"ब्याज से कमाई",t.byaj,"कुल खर्च",t.kharch,"ऋण में (बाकी मूल)",t.loanOut,"हाथ में नकद",t.bacha]),"",
+  const lines=[row([d.name||"समिति","रिपोर्ट: "+today()]),row(["कुल जमा",t.jama,"अन्य आय",t.aay,"ब्याज से कमाई",t.byaj,"कुल खर्च",t.kharch,"ऋण में (बाकी मूल)",t.loanOut,"हाथ में नकद",t.bacha]),"",
     row(["नाम","पद",...(S.admin?["मोबाइल"]:[]),"सदस्यता",...months.map(monthLabel),"कुल जमा","बाकी"])];
   for(const m of sortByPost(allM)){const s=memberSummary(m);
     lines.push(row([m.name,m.post||"",...(S.admin?[m.phone||""]:[]),periodText(m),...months.map(mo=>{const st=monthStatus(m,mo);return st.paid?st.paid:(st.label==="सदस्य नहीं"?"":st.label)}),s.paid,s.due]))}
+  lines.push("",row(["अन्य आय"]),row(["तारीख़","विषय","प्रकार","किससे","राशि","नोट"]));
+  for(const x of (d.incomes||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)))lines.push(row([dateLabel(x.date),x.subject,x.type||"",x.from||"",x.amount,x.note||""]));
   lines.push("",row(["खर्च"]),row(["तारीख़","विवरण","राशि"]));
   for(const e of (d.expenses||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)))lines.push(row([dateLabel(e.date),e.desc,e.amount]));
   const blob=new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
@@ -843,6 +849,81 @@ function dueAlerts(){
   if(lines.length)out.push(banner(lines,S.view!=="anurodh"?h("a",{href:"#anurodh",class:"btn small",style:"display:inline-block;margin-top:8px;text-decoration:none"},"पैसे जमा बताएँ ›"):null));
   return out;
 }
+// ----- other income (आय) -----
+const AAY_TYPES=["कबाड़/सामान बिक्री","दान/चंदा","जुर्माना","किराया","अन्य"];
+function incomes(){return D().incomes||[]}
+function aayShareText(x){
+  let t="💰 *"+(D().name||"समिति")+"*\n*समिति को आय*\n\n"+x.subject+"\nराशि: "+rs(x.amount)+"\nदिनांक: "+dateLabel(x.date);
+  if(x.from)t+="\nकिससे: "+x.from;
+  if(x.note)t+="\n\n"+x.note;
+  return t+"\n\nऐप में देखें: "+appUrl();
+}
+function aayForm(x){
+  const isNew=!x;x=x||{};
+  const subject=h("input",{required:true,value:x.subject||"",placeholder:"जैसे: पुरानी नाली की जाली बेची",maxlength:"150"});
+  const type=h("select",null,AAY_TYPES.map(t=>h("option",{value:t,selected:(x.type||AAY_TYPES[0])===t?true:null},t)));
+  const amt=h("input",{type:"number",min:"1",inputmode:"numeric",required:true,value:x.amount||"",placeholder:"राशि"});
+  const date=h("input",{type:"date",required:true,value:x.date||today()});
+  const dl=h("datalist",{id:"aay-from-list"},(D().members||[]).map(m=>h("option",{value:m.name})));
+  const from=h("input",{value:x.from||"",list:"aay-from-list",placeholder:"खरीदार/दानदाता का नाम (ज़रूरी नहीं)",maxlength:"80"});
+  const note=h("textarea",{value:x.note||"",placeholder:"नोट: पूरी जानकारी लिखें (ज़रूरी नहीं)"});
+  const fi=isNew?h("input",{type:"file",accept:"image/*",multiple:true}):null;
+  const btn=h("button",{class:"btn",type:"submit"},isNew?"आय जोड़ें":"सेव करें");
+  return h("form",{class:"f",style:"margin-bottom:12px",onsubmit:async e=>{e.preventDefault();
+    const a=Number(amt.value),sj=subject.value.trim();if(!sj||!(a>0)||!date.value)return;
+    const id=isNew?uid():x.id;let files=[];
+    if(fi&&fi.files.length){btn.disabled=true;
+      try{files=await uploadMany([...fi.files],id,(i,n)=>{btn.textContent="फ़ोटो "+i+"/"+n+" अपलोड हो रही है…"})}
+      catch(err){console.error(err);btn.disabled=false;btn.textContent="आय जोड़ें";toast("फ़ोटो अपलोड नहीं हुई");return}}
+    S.aayEdit=null;
+    const rec={subject:sj,type:type.value,amount:a,date:date.value,from:from.value.trim(),note:note.value.trim()};
+    save(d=>{d.incomes=d.incomes||[];
+      if(isNew)d.incomes.push(Object.assign({id,files},rec));
+      else{const y=d.incomes.find(z=>z.id===x.id);if(y)Object.assign(y,rec)}},isNew?"आय जुड़ गई":"आय सुधार दी")}},
+    h("div",{style:"font-weight:700"},isNew?"नई आय लिखें":"आय सुधारें"),
+    h("label",null,"विषय (किस चीज़ का पैसा)",subject),
+    h("div",{class:"two"},h("label",null,"प्रकार",type),h("label",null,"राशि (₹)",amt)),
+    h("div",{class:"two"},h("label",null,"तारीख़",date),h("label",null,"किससे मिली",from)),dl,
+    h("label",null,"नोट",note),
+    fi?h("label",null,"फ़ोटो (रसीद/सामान, एक साथ कई चुन सकते हैं)",fi):null,
+    h("div",{class:"actions",style:"justify-content:flex-start"},btn,
+      isNew?null:h("button",{class:"btn ghost",type:"button",onclick:()=>{S.aayEdit=null;render(true)}},"रद्द करें")));
+}
+function aayCard(x){
+  if(S.admin&&S.aayEdit===x.id)return aayForm(x);
+  const files=x.files||[];
+  const card=h("div",{class:"card",style:"margin-bottom:10px;border-left:5px solid var(--ok)"},
+    h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},
+      h("div",{style:"font-weight:700;overflow-wrap:anywhere",text:x.subject}),
+      h("span",{class:"amt",style:"color:var(--ok)"},"+ "+rs(x.amount))),
+    h("div",{class:"meta"},dateLabel(x.date)+" · "+(x.type||"अन्य")+(x.from?" · "+x.from:"")),
+    x.note?h("div",{style:"margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere",text:x.note}):null,
+    files.length?h("div",{class:"actions",style:"justify-content:flex-start;margin-top:8px"},files.map((id,i)=>h("button",{class:"btn small ghost",type:"button",
+      onclick:()=>showBill(id,S.admin?()=>{save(d=>{const y=d.incomes.find(z=>z.id===x.id);if(y)y.files=(y.files||[]).filter(f=>f!==id)},"फ़ोटो हटाई");deleteDoc(doc(db,"bills",id)).catch(()=>{})}:null)},"📄 फ़ोटो "+(i+1)))):null);
+  const acts=[waBtn(aayShareText(x))];
+  if(S.admin){
+    const st=h("span",{class:"meta"});
+    const fi=h("input",{type:"file",accept:"image/*",multiple:true,hidden:true,onchange:async ev=>{
+      const fl=[...ev.target.files];if(!fl.length)return;
+      try{const ids=await uploadMany(fl,x.id,(i,n)=>{st.textContent="फ़ोटो "+i+"/"+n+" अपलोड हो रही है…"});
+        save(d=>{const y=d.incomes.find(z=>z.id===x.id);if(y)y.files=(y.files||[]).concat(ids)},ids.length+" फ़ोटो जुड़ गईं")}
+      catch(_){st.textContent="";toast("फ़ोटो अपलोड नहीं हुई")}}});
+    acts.push(fi,h("button",{class:"btn small ghost",type:"button",onclick:()=>fi.click()},"📎 फ़ोटो जोड़ें"),
+      h("button",{class:"btn small ghost",type:"button",onclick:()=>{S.aayEdit=x.id;render(true)}},"सुधारें"),
+      confirmBtn("हटाएँ","danger",()=>{save(d=>{d.incomes=(d.incomes||[]).filter(z=>z.id!==x.id)},"आय हटाई");files.forEach(id=>deleteDoc(doc(db,"bills",id)).catch(()=>{}))}),st);
+  }
+  card.append(h("div",{class:"actions",style:"justify-content:flex-start;margin-top:10px"},acts));
+  return card;
+}
+function viewAay(){
+  const out=[];const list=incomes().slice().sort((a,b)=>b.date.localeCompare(a.date));
+  const total=list.reduce((t,x)=>t+(Number(x.amount)||0),0);
+  out.push(h("div",{class:"stat-line"},h("span",{class:"pill ok"},"कुल अन्य आय "+rs(total)),h("span",{class:"pill neutral"},"हाथ में नकद "+rs(totals().bacha))));
+  if(S.admin)out.push(h("section",null,aayForm(null)));
+  out.push(h("section",null,h("h2",null,"सारी आय ("+list.length+")"),list.length?list.map(aayCard):h("div",{class:"empty"},"अभी कोई अन्य आय नहीं लिखी गई")));
+  return out;
+}
+
 // ----- members -----
 function openMember(id){S.detail=id;S.editing=S.leaving=S.rejoining=null;if(S.view!=="sadasya")location.hash="#sadasya";else{render(true)}window.scrollTo(0,0)}
 function nameBtn(m,extra){return h("button",{class:"namebtn",type:"button",onclick:()=>openMember(m.id),"aria-label":m.name+" का पूरा हिसाब"},m.name,h("span",{class:"chev","aria-hidden":"true"}," ›"),extra||null)}
@@ -1285,7 +1366,7 @@ function render(force){
   if(!S.loaded)return plain([h("p",{class:"muted"},"हिसाब खुल रहा है…")]);
   if(!S.exists)return plain(viewSetup());
   readHash();tabsEl.style.display="";renderTabs();
-  const fn={rin:viewRin,mera:viewMera,saransh:viewSaransh,jama:viewJama,anurodh:viewAnurodh,sadasya:viewSadasya,kharcha:viewKharcha,baithak:viewBaithak,suchna:viewSuchna}[S.view];
+  const fn={aay:viewAay,rin:viewRin,mera:viewMera,saransh:viewSaransh,jama:viewJama,anurodh:viewAnurodh,sadasya:viewSadasya,kharcha:viewKharcha,baithak:viewBaithak,suchna:viewSuchna}[S.view];
   app.replaceChildren(...dueAlerts(),...fn());
 }
 
