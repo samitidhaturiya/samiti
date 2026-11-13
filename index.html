@@ -719,23 +719,28 @@ function loanForm(l){
   const lastRate=(loans().slice(-1)[0]||{}).rate;
   const rate=h("input",{type:"number",min:"0",max:"100",step:"0.01",inputmode:"decimal",required:true,value:l.rate!=null?l.rate:(lastRate!=null?lastRate:12)});
   const note=h("input",{value:l.note||"",placeholder:"जैसे: गवाह, शर्त (ज़रूरी नहीं)",maxlength:"200"});
+  const due=h("input",{type:"date",value:l.dueDate||""});
+  const remind=h("input",{type:"checkbox",checked:l.remind!==false});
   const cDate=l.closed?h("input",{type:"date",value:l.closed.date}):null;
   const cAmt=l.closed?h("input",{type:"number",min:"0",inputmode:"numeric",value:l.closed.amount}):null;
   return h("form",{class:"f",style:"margin-bottom:12px",onsubmit:e=>{e.preventDefault();
     const a=Number(amt.value),r=Number(rate.value);
     if(!mem.value||!(a>0)||!date.value||!(r>=0)){toast("सब ख़ाने सही भरें");return}
+    if(due.value&&due.value<date.value){toast("वापसी की तारीख़ ऋण की तारीख़ से पहले नहीं हो सकती");return}
     if(cDate&&cDate.value<date.value){toast("चुकता तारीख़ ऋण की तारीख़ से पहले नहीं हो सकती");return}
     const warn=isNew&&a>totals().bacha?" (ध्यान दें: हाथ में सिर्फ़ "+rs(totals().bacha)+" थे)":"";
     S.loanEdit=null;
     save(d=>{d.loans=d.loans||[];
-      if(isNew)d.loans.push({id:uid(),memberId:mem.value,amount:a,date:date.value,rate:r,note:note.value.trim(),closed:null});
-      else{const x=d.loans.find(y=>y.id===l.id);if(!x)return;Object.assign(x,{memberId:mem.value,amount:a,date:date.value,rate:r,note:note.value.trim()});
+      if(isNew)d.loans.push({id:uid(),memberId:mem.value,amount:a,date:date.value,rate:r,note:note.value.trim(),dueDate:due.value||null,remind:remind.checked,closed:null});
+      else{const x=d.loans.find(y=>y.id===l.id);if(!x)return;Object.assign(x,{memberId:mem.value,amount:a,date:date.value,rate:r,note:note.value.trim(),dueDate:due.value||null,remind:remind.checked});
         if(cDate)x.closed={date:cDate.value||x.closed.date,amount:Number(cAmt.value)||0}}
     },isNew?"ऋण लिख दिया"+warn:"ऋण सुधार दिया")}},
     h("div",{style:"font-weight:700"},isNew?"नया ऋण दें":"ऋण सुधारें"),
     h("label",null,"किस सदस्य को",mem),
     h("div",{class:"two"},h("label",null,"मूल राशि (₹)",amt),h("label",null,"किस तारीख़ को दिया",date)),
-    h("div",{class:"two"},h("label",null,"ब्याज दर (% सालाना)",rate),h("label",null,"टिप्पणी",note)),
+    h("div",{class:"two"},h("label",null,"ब्याज दर (% सालाना)",rate),h("label",null,"वापसी की अंतिम तारीख़",due)),
+    h("label",null,"टिप्पणी",note),
+    h("label",{style:"display:flex;gap:8px;align-items:center;color:var(--ink)"},remind,"सदस्य को रिमाइंडर दिखाएँ (वापसी और हर महीने का ब्याज)"),
     cDate?h("div",{class:"two"},h("label",null,"चुकता की तारीख़",cDate),h("label",null,"कुल मिली राशि (₹)",cAmt)):null,
     h("p",{class:"small muted",style:"margin:0"},"ब्याज रोज़ के हिसाब से जुड़ता है: मूल × दर% × दिन ÷ 365"),
     h("div",{class:"actions",style:"justify-content:flex-start"},h("button",{class:"btn",type:"submit"},isNew?"ऋण दें":"सेव करें"),
@@ -772,6 +777,11 @@ function loanCard(l){
     h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},
       h("div",{class:"title",style:"font-weight:700"},m&&!limited()?nameBtn(m):memberName(l.memberId)),
       l.closed?h("span",{class:"pill ok"},"चुकता"):h("span",{class:"pill due"},"चालू")),
+    !l.closed?(()=>{const lines=loanReminderLines(l,false);const st=loanStatus(l);
+      return h("div",{style:"margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--haldi-soft)"},
+        l.dueDate?h("div",{style:"display:flex;justify-content:space-between;gap:8px;align-items:center"},h("span",null,"वापसी: "+dateLabel(l.dueDate)),h("span",{class:"pill "+(st.dueCls==="due"?"due":st.dueCls==="warn"?"neutral":"ok")},st.dueText)):h("div",{class:"small muted"},"वापसी की तारीख़ तय नहीं"),
+        lines.filter(x=>!x.t.includes("की वापसी")).map(x=>h("div",{class:"small",style:"margin-top:4px;color:"+(x.cls==="due"?"var(--due)":"inherit")},x.t.replace(memberName(l.memberId)+" के ऋण का ",""))),
+        l.remind===false?h("div",{class:"small muted",style:"margin-top:4px"},"🔕 सदस्य के लिए रिमाइंडर बंद"):null)})():null,
     h("div",{style:"margin-top:6px"},rows.map(r=>h("div",{style:"display:flex;justify-content:space-between;gap:10px"},h("span",{class:"muted"},r[0]),h("span",{class:"amt",style:"font-weight:500"},r[1])))),
     h("div",{style:"display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)"},
       h("span",{style:"font-weight:700"},l.closed?"कुल मिला":"कुल लेना है (आज तक)"),h("span",{class:"amt"},rs(l.closed?l.closed.amount:c.total))),
@@ -826,27 +836,61 @@ function memberLoansSection(m){
 
 // ----- alerts after the 5th -----
 const ALERT_DAY=5;
+function dayDiff(a,b){const t=x=>Date.UTC(+x.slice(0,4),+x.slice(5,7)-1,+x.slice(8,10));return Math.round((t(b)-t(a))/86400000)}
+function monthEndOf(d){const y=+d.slice(0,4),m=+d.slice(5,7);const last=new Date(Date.UTC(y,m,0)).getUTCDate();return d.slice(0,8)+String(last).padStart(2,"0")}
+function prevMonthEnd(d){const y=+d.slice(0,4),m=+d.slice(5,7);const dt=new Date(Date.UTC(y,m-1,0));return dt.getUTCFullYear()+"-"+String(dt.getUTCMonth()+1).padStart(2,"0")+"-"+String(dt.getUTCDate()).padStart(2,"0")}
+function loanStatus(l){
+  const td=today(),st={};
+  if(l.dueDate){const n=dayDiff(td,l.dueDate);st.dueDays=n;
+    st.dueText=n>0?n+" दिन शेष":n===0?"आज अंतिम तारीख़":(-n)+" दिन ऊपर हो गए";
+    st.dueCls=n<0||n===0?"due":n<=7?"warn":"ok";}
+  const me=monthEndOf(td),pe=prevMonthEnd(td);
+  const paid=byajPaidSum(l);
+  const toMonthEnd=me>=l.date?loanCalc(l,me).byaj:0;
+  const toPrevEnd=pe>=l.date?loanCalc(l,pe).byaj:0;
+  st.intOld=Math.max(0,toPrevEnd-paid);
+  st.intThis=Math.max(0,toMonthEnd-paid);
+  st.monthEnd=me;st.daysToME=dayDiff(td,me);
+  return st;
+}
+function loanReminderLines(l,own){
+  const st=loanStatus(l),out=[];const who=own?"आपके ऋण":memberName(l.memberId)+" के ऋण";
+  if(l.dueDate)out.push({cls:st.dueCls,t:who+" ("+rs(l.amount)+") की वापसी "+dateLabel(l.dueDate)+" तक · "+st.dueText});
+  if(st.intOld>0)out.push({cls:"due",t:who+" का पिछले महीनों का ब्याज "+rs(st.intOld)+" बाकी है (तारीख़ निकल चुकी)"});
+  if(st.intThis>0)out.push({cls:st.daysToME<=3?"warn":"ok",t:"इस महीने का ब्याज: "+dateLabel(st.monthEnd)+" तक कुल "+rs(st.intThis)+" जमा करें · "+(st.daysToME>0?st.daysToME+" दिन शेष":"आज अंतिम दिन")});
+  else out.push({cls:"ok",t:"✓ इस महीने तक का ब्याज जमा है"});
+  return out;
+}
 function dueAlerts(){
-  if(new Date().getDate()<=ALERT_DAY||!S.data)return [];
-  const mo=S.monthNow,out=[];
-  const banner=(lines,btn)=>h("div",{class:"card",role:"status",style:"margin-bottom:16px;border-left:5px solid var(--due);background:var(--due-soft)"},
-    h("div",{style:"font-weight:700;margin-bottom:4px"},"⚠️ ध्यान दें"),lines.map(t=>h("div",null,t)),btn||null);
+  if(!S.data)return [];
+  const mo=S.monthNow,out=[];const after=new Date().getDate()>ALERT_DAY;
+  const banner=(lines,btn,tone)=>h("div",{class:"card",role:"status",style:"margin-bottom:16px;border-left:5px solid var(--"+(tone||"due")+");background:var(--"+(tone==="head"?"haldi-soft":"due-soft")+")"},
+    h("div",{style:"font-weight:700;margin-bottom:4px"},tone==="head"?"🔔 ऋण रिमाइंडर":"⚠️ ध्यान दें"),lines.map(t=>h("div",{style:"margin-top:2px"},t)),btn||null);
   if(S.admin){
-    const notPaid=(D().members||[]).filter(m=>memberActiveIn(m,mo)&&!isSkipped(mo)&&paidFor(m.id,mo)<amountFor(mo));
-    const byajDue=loans().filter(l=>!l.closed&&loanCalc(l).baki>0);
     const lines=[];
-    if(notPaid.length)lines.push(monthLabel(mo)+" की राशि "+notPaid.length+" सदस्यों ने अभी जमा नहीं की।");
-    if(byajDue.length)lines.push(byajDue.length+" ऋण का ब्याज बाकी है।");
-    if(lines.length)out.push(banner(lines));
+    if(after){const notPaid=(D().members||[]).filter(m=>memberActiveIn(m,mo)&&!isSkipped(mo)&&paidFor(m.id,mo)<amountFor(mo));
+      if(notPaid.length)lines.push(monthLabel(mo)+" की राशि "+notPaid.length+" सदस्यों ने अभी जमा नहीं की।");}
+    const open=loans().filter(l=>!l.closed);
+    const over=open.filter(l=>l.dueDate&&dayDiff(today(),l.dueDate)<0).length;
+    const soon=open.filter(l=>l.dueDate&&dayDiff(today(),l.dueDate)>=0&&dayDiff(today(),l.dueDate)<=7).length;
+    const intOld=open.filter(l=>loanStatus(l).intOld>0).length;
+    const intThis=open.filter(l=>loanStatus(l).intThis>0).length;
+    if(over)lines.push("🔴 "+over+" ऋण की वापसी की तारीख़ निकल चुकी है।");
+    if(soon)lines.push("🟠 "+soon+" ऋण की वापसी 7 दिन के अंदर है।");
+    if(intOld)lines.push(intOld+" ऋण का पिछले महीनों का ब्याज बाकी है।");
+    if(intThis)lines.push(intThis+" ऋण का इस महीने का ब्याज "+dateLabel(monthEndOf(today()))+" तक आना है।");
+    if(lines.length)out.push(banner(lines,S.view!=="rin"&&open.length?h("a",{href:"#rin",class:"btn small",style:"display:inline-block;margin-top:8px;text-decoration:none"},"ऋण देखें ›"):null));
     return out;
   }
   const m=meMember();if(!m)return out;
   const lines=[];
-  if(memberActiveIn(m,mo)&&!isSkipped(mo)&&paidFor(m.id,mo)<amountFor(mo))
+  if(after&&memberActiveIn(m,mo)&&!isSkipped(mo)&&paidFor(m.id,mo)<amountFor(mo)){
     lines.push(monthLabel(mo)+" की राशि "+rs(amountFor(mo)-paidFor(m.id,mo))+" अभी जमा नहीं हुई। कृपया जल्दी जमा करें।");
-  const due=memberSummary(m).due;if(due>0&&lines.length)lines.push("आपका कुल बाकी: "+rs(due));
-  for(const l of loans().filter(l=>!l.closed&&l.memberId===m.id)){const c=loanCalc(l);if(c.baki>0)lines.push("आपके ऋण ("+rs(l.amount)+") का ब्याज "+rs(c.baki)+" बाकी है।")}
+    const due=memberSummary(m).due;if(due>0)lines.push("आपका कुल बाकी: "+rs(due));}
   if(lines.length)out.push(banner(lines,S.view!=="anurodh"?h("a",{href:"#anurodh",class:"btn small",style:"display:inline-block;margin-top:8px;text-decoration:none"},"पैसे जमा बताएँ ›"):null));
+  const my=loans().filter(l=>!l.closed&&l.memberId===m.id&&l.remind!==false);
+  if(my.length){const ll=my.flatMap(l=>loanReminderLines(l,true).map(x=>h("div",{style:"color:"+(x.cls==="due"?"var(--due)":"inherit")},x.t)));
+    out.push(banner(ll,S.view!=="anurodh"?h("a",{href:"#anurodh",class:"btn small",style:"display:inline-block;margin-top:8px;text-decoration:none"},"ब्याज/पैसे जमा बताएँ ›"):null,"head"));}
   return out;
 }
 // ----- other income (आय) -----
