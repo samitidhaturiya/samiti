@@ -171,7 +171,7 @@ import { getAuth, initializeAuth, inMemoryPersistence, GoogleAuthProvider, signI
 const MONTHS=["जनवरी","फ़रवरी","मार्च","अप्रैल","मई","जून","जुलाई","अगस्त","सितंबर","अक्टूबर","नवंबर","दिसंबर"];
 const LOGIN_DOMAIN="samiti-login.app";
 const S={data:null,exists:false,admin:false,user:null,me:null,authReady:false,noAccess:false,loaded:false,error:"",month:curMonth(),monthNow:curMonth(),view:"saransh",
-  requests:[],logins:{},editing:null,leaving:null,rejoining:null,decisionEdit:null,meetEdit:null,loanEdit:null,loanClose:null,rateEdit:null,byajPay:null,aayEdit:null,raw:{},log:[],rokadYear:null,dateEdit:null,attEdit:null,logAll:false,logOpen:false,migrating:false,showClosedLoans:false,expEdit:null,detail:null,showGone:false,busy:{},billCache:{},deferred:false,saving:Promise.resolve(),
+  requests:[],logins:{},editing:null,leaving:null,rejoining:null,decisionEdit:null,meetEdit:null,loanEdit:null,loanClose:null,rateEdit:null,byajPay:null,aayEdit:null,raw:{},log:[],rokadYear:null,dateEdit:null,attEdit:null,bankEdit:null,logAll:false,logOpen:false,migrating:false,showClosedLoans:false,expEdit:null,detail:null,showGone:false,busy:{},billCache:{},deferred:false,saving:Promise.resolve(),
   req:{months:[],amount:"",method:"नकद",note:"",sent:false}};
 let db,auth,secAuthInst=null,C=window.SAMITI_CONFIG,subs=[];
 
@@ -243,7 +243,7 @@ function totals(){
 function mainRef(){return doc(db,"samiti","main")}
 
 // ---------- storage: split into several docs ----------
-const PARTS=["logo","expenses","incomes","meetings","notices","loans"];
+const PARTS=["logo","expenses","incomes","meetings","notices","loans","bank"];
 const DOC_LIMIT=1000000;
 function partRef(p){return doc(db,"samiti",p)}
 function mainOnly(d){const m=Object.assign({},d);for(const p of PARTS)delete m[p];return m}
@@ -256,7 +256,7 @@ function rebuild(){
 function bytes(o){try{return new TextEncoder().encode(JSON.stringify(o)).length}catch(_){return 0}}
 function partSizes(){
   const d=S.data||{};const out=[["मुख्य",bytes(mainOnly(d))]];
-  const L={logo:"फ़ोटो",expenses:"खर्च",incomes:"आय",meetings:"बैठक",notices:"सूचना",loans:"ऋण"};
+  const L={logo:"फ़ोटो",expenses:"खर्च",incomes:"आय",meetings:"बैठक",notices:"सूचना",loans:"ऋण",bank:"बैंक"};
   for(const p of PARTS)out.push([L[p],bytes({v:d[p]==null?null:d[p]})]);
   return out.map(([n,b])=>({name:n,bytes:b,pct:Math.min(100,Math.round(b/DOC_LIMIT*1000)/10)}));
 }
@@ -334,7 +334,7 @@ async function showBill(id,onDelete){
 // ---------- routing ----------
 function meMember(){return (D().members||[]).find(m=>m.id===S.me)}
 function limited(){if(S.admin)return false;const m=meMember();return !(m&&m.fullAccess)}
-const VIEWS=()=>limited()?[["mera","मेरा हिसाब"],["anurodh","पैसे जमा बताएँ"]]:[["saransh","सारांश"],["jama","मासिक जमा"],["anurodh",S.admin?"अनुरोध":"पैसे जमा बताएँ"],["sadasya","सदस्य"],["kharcha","खर्च"],["aay","आय"],...(canRokad()?[["rokad","रोकड़ बही"]]:[]),["rin","ऋण"],["baithak","बैठक"],["suchna","सूचना"]];
+const VIEWS=()=>limited()?[["mera","मेरा हिसाब"],["anurodh","पैसे जमा बताएँ"]]:[["saransh","सारांश"],["jama","मासिक जमा"],["anurodh",S.admin?"अनुरोध":"पैसे जमा बताएँ"],["sadasya","सदस्य"],["kharcha","खर्च"],["aay","आय"],...(canRokad()?[["rokad","रोकड़ बही"]]:[]),["bank","बैंक"],["rin","ऋण"],["baithak","बैठक"],["suchna","सूचना"]];
 function readHash(){const v=(location.hash||"").slice(1);S.view=VIEWS().some(x=>x[0]===v)?v:VIEWS()[0][0]}
 window.addEventListener("hashchange",()=>{const prev=S.view;readHash();if(S.view!=="sadasya")S.detail=null;else if(prev==="sadasya"&&!S._keep)S.detail=null;render(true);window.scrollTo(0,0)});
 function renderTabs(){
@@ -358,7 +358,9 @@ function viewSaransh(){
     t.byaj?h("div",{class:"row"},h("span",null,"ब्याज से कमाई"),h("span",{class:"amt"},"+ "+rs(t.byaj))):null,
     h("div",{class:"row"},h("span",null,"कुल खर्च"),h("span",{class:"amt minus"},"− "+rs(t.kharch))),
     t.loanOut?h("div",{class:"row"},h("span",null,"ऋण में दिया (बाकी)"),h("span",{class:"amt minus"},"− "+rs(t.loanOut))):null,
-    h("div",{class:"row total"},h("span",null,t.loanOut?"हाथ में नकद":"बचे हुए पैसे"),h("span",{class:"amt"},rs(t.bacha))))));
+    h("div",{class:"row total"},h("span",null,"बचे हुए पैसे"),h("span",{class:"amt"},rs(t.bacha))),
+    (bankList().length||bankInfo().name)?h("div",{class:"row"},h("span",null,"इसमें से: 🏦 बैंक में ",h("b",null,rs(bankBal()))),h("span",null,"💵 हाथ में ",h("b",null,rs(t.bacha-bankBal())))):null)));
+  {const r=bankDepositReminder();if(r)out.push(r)}
   {const dl=(D().members||[]).map(m=>memberSummary(m).due).filter(x=>x>0);const td=dl.reduce((a,b)=>a+b,0);
    out.push(h("section",{style:"margin-top:-16px"},h("div",{class:"ledger"},h("div",{class:"row"},
      h("span",null,"अभी सभी सदस्यों का कुल जमा बाकी",dl.length?h("div",{class:"small muted"},dl.length+" सदस्यों से लेना है"):null),
@@ -489,7 +491,7 @@ function logSection(){
   const list=(S.log||[]).slice().sort((a,b)=>b.t-a.t);
   if(!list.length&&!S.admin)return null;
   const shown=S.logAll?list:list.slice(0,15);
-  const fmt=t=>{const d=new Date(t);return d.getDate()+" "+MONTHS[d.getMonth()]+" "+d.getFullYear()+", "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")};
+  const fmt=t=>{const d=new Date(t);return d.getDate()+" "+MONTHS[d.getMonth()]+" "+d.getFullYear()+", "+fmtTime(String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"))};
   return h("section",null,h("details",{open:S.logOpen?true:null,ontoggle:e=>{S.logOpen=e.target.open}},
     h("summary",{style:"cursor:pointer;font-family:'Tiro Devanagari Hindi',Georgia,serif;font-size:1.3rem;margin-bottom:10px"},"📜 बदलाव का इतिहास ("+list.length+")"),
     list.length?h("div",{class:"list"},shown.map(x=>h("div",{class:"item",style:"align-items:flex-start"},
@@ -1135,6 +1137,7 @@ function rokadEntries(){
     if(l.closed)E.push({date:l.closed.date,in:Number(l.closed.amount)||0,t:"🏦 ऋण वापस (मूल + ब्याज): "+memberName(l.memberId),k:4});
   }
   for(const e of d.expenses||[])E.push({date:e.date,out:Number(e.amount)||0,t:"🧾 "+e.desc,k:6,expId:e.id});
+  for(const x of d.bank||[])E.push({date:x.date,mv:Number(x.amount)||0,t:x.type==="out"?"🏦 बैंक से नकद निकाला":"🏦 नकद बैंक में जमा किया",tag:"बैंक",k:7});
   E.sort((a,b)=>a.date.localeCompare(b.date)||a.k-b.k);
   let bal=0;for(const e of E){bal+=(e.in||0)-(e.out||0);e.bal=bal}
   return E;
@@ -1163,7 +1166,7 @@ function viewRokad(){
   const cy=String(new Date().getFullYear());if(!years.includes(cy))years.push(cy);
   if(!S.rokadYear)S.rokadYear=cy;
   const yr=S.rokadYear;
-  out.push(h("section",null,h("div",{class:"ledger"},h("div",{class:"row total"},h("span",null,"आज हाथ में नकद"),h("span",{class:"amt"},rs(E.length?E[E.length-1].bal:0))))));
+  out.push(h("section",null,h("div",{class:"ledger"},h("div",{class:"row total"},h("span",null,"आज कुल पैसा (हाथ + बैंक)"),h("span",{class:"amt"},rs(E.length?E[E.length-1].bal:0))))));
   if(S.admin)out.push(h("section",null,h("div",{class:"card",style:"display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"},
     h("span",null,D().showRokad?"👁️ पूरी पहुँच वाले सदस्य यह बही देख सकते हैं":"🔒 अभी यह बही सिर्फ़ आप देख सकते हैं"),
     D().showRokad?confirmBtn("सदस्यों से छिपाएँ","danger",()=>save(d=>{d.showRokad=false},"रोकड़ बही सदस्यों से छिपाई"))
@@ -1193,7 +1196,7 @@ function viewRokad(){
     const neg=e.bal<0;
     rows.push(h("div",{class:"rr"+(neg?" neg":"")},
       h("div",null,h("div",{class:"d"},dateLabel(e.date)+(e.est?" · अनुमानित":"")),h("div",{class:"t"},e.t,e.tag?h("span",{class:"tag"},e.tag):null)),
-      h("div",null,h("div",{class:"a "+(e.in?"in":"out")},(e.in?"+ ":"− ")+rs(e.in||e.out)),h("div",{class:"b"},"बचा ",h("b",null,rs(e.bal)+(neg?" ⚠️":""))))));
+      h("div",null,e.mv?h("div",{class:"a",style:"color:var(--muted)"},"↔ "+rs(e.mv)):h("div",{class:"a "+(e.in?"in":"out")},(e.in?"+ ":"− ")+rs(e.in||e.out)),h("div",{class:"b"},"बचा ",h("b",null,rs(e.bal)+(neg?" ⚠️":""))))));
     if(neg&&!wasNeg)rows.push(h("div",{class:"rr sum"},h("div",null,h("div",{class:"t"},"⚠️ इस दिन हाथ के पैसे से ज़्यादा खर्च हुआ"),h("div",{class:"d"},"किसी जमा की तारीख़ गलत हो सकती है या कोई जमा लिखना छूट गया।")),h("div")));
     wasNeg=neg;
   }
@@ -1202,6 +1205,95 @@ function viewRokad(){
   out.push(h("p",{class:"small muted"},"\"अनुमानित\" = जमा की असली तारीख़ नहीं लिखी, इसलिए उस महीने की 10 तारीख़ मानी गई। सदस्य के पेज पर \"मिला\" की तारीख़ सुधार सकते हैं।"));
   return out;
 }
+
+// ----- बैंक खाता -----
+function bankList(){return D().bank||[]}
+function bankBal(asOf){let b=0;for(const x of bankList()){if(asOf&&x.date>asOf)continue;b+=(x.type==="out"?-1:1)*(Number(x.amount)||0)}return b}
+function bankInfo(){return D().bankInfo||{}}
+function bankDepositReminder(){
+  if(!S.admin||!bankInfo().name)return null;
+  const td=today(),day=+td.slice(8),mo=td.slice(0,7);if(day<=penCfg().day)return null;
+  if(bankList().some(x=>x.type!=="out"&&x.date.slice(0,7)===mo))return null;
+  const cash=totals().bacha-bankBal();if(cash<=0)return null;
+  const late=day>15;
+  return h("div",{class:"card",style:"margin-bottom:16px;border-left:5px solid var(--"+(late?"due":"haldi")+");background:var(--"+(late?"due-soft":"haldi-soft")+")"},
+    h("div",{style:"font-weight:700;margin-bottom:4px"},"🏦 बैंक में जमा करें"),
+    h("div",null,late?monthLabel(mo)+" का पैसा 15 तारीख़ तक बैंक में जमा होना था, अभी तक नहीं हुआ।":monthLabel(mo)+" का इकट्ठा पैसा 15 तारीख़ तक बैंक में जमा करें।"),
+    h("div",null,"हाथ में नकद: ",h("b",null,rs(cash))),
+    S.view!=="bank"?h("a",{href:"#bank",class:"btn small",style:"display:inline-block;margin-top:8px;text-decoration:none"},"बैंक में जमा लिखें ›"):null);
+}
+function bankForm(x){
+  const isNew=!x;x=x||{};
+  const type=h("select",null,[["in","नकद → बैंक में जमा किया"],["out","बैंक से पैसा निकाला"]].map(([v,l])=>h("option",{value:v,selected:(x.type||"in")===v?true:null},l)));
+  const date=h("input",{type:"date",required:true,value:x.date||today()});
+  const amt=h("input",{type:"number",min:"1",inputmode:"numeric",required:true,value:x.amount||"",placeholder:"राशि"});
+  const note=h("input",{value:x.note||"",placeholder:"जैसे: नवंबर का मासिक जमा, किसने जमा किया",maxlength:"200"});
+  const fi=isNew?h("input",{type:"file",accept:"image/*",multiple:true}):null;
+  const btn=h("button",{class:"btn",type:"submit"},isNew?"सेव करें":"सुधार सेव करें");
+  return h("form",{class:"f",style:"margin-bottom:12px",onsubmit:async e=>{e.preventDefault();
+    const a=Number(amt.value);if(!(a>0)||!date.value)return;
+    if(type.value==="out"&&isNew&&a>bankBal()){toast("बैंक में सिर्फ़ "+rs(bankBal())+" हैं");return}
+    const id=isNew?uid():x.id;let files=[];
+    if(fi&&fi.files.length){btn.disabled=true;
+      try{files=await uploadMany([...fi.files],id,(i,n)=>{btn.textContent="फ़ोटो "+i+"/"+n+" अपलोड हो रही है…"})}
+      catch(err){btn.disabled=false;btn.textContent="सेव करें";toast("फ़ोटो अपलोड नहीं हुई");return}}
+    S.bankEdit=null;
+    const rec={type:type.value,date:date.value,amount:a,note:note.value.trim()};
+    save(d=>{d.bank=d.bank||[];if(isNew)d.bank.push(Object.assign({id,files},rec));else{const y=d.bank.find(z=>z.id===x.id);if(y)Object.assign(y,rec)}},
+      (rec.type==="out"?"बैंक से निकाले: ":"बैंक में जमा: ")+rs(a)+" ("+dateLabel(rec.date)+")")}},
+    h("div",{style:"font-weight:700"},isNew?"बैंक का लेन-देन लिखें":"लेन-देन सुधारें"),
+    h("label",null,"क्या किया",type),
+    h("div",{class:"two"},h("label",null,"किस दिन",date),h("label",null,"राशि (₹)",amt)),
+    h("label",null,"नोट",note),
+    fi?h("label",null,"पासबुक एंट्री / जमा पर्ची की फ़ोटो (कई चुन सकते हैं)",fi):null,
+    h("div",{class:"actions",style:"justify-content:flex-start"},btn,isNew?null:h("button",{class:"btn ghost",type:"button",onclick:()=>{S.bankEdit=null;render(true)}},"रद्द करें")));
+}
+function bankCard(x){
+  if(S.admin&&S.bankEdit===x.id)return bankForm(x);
+  const files=x.files||[];const out=x.type==="out";
+  const acts=[];
+  if(S.admin){
+    const st=h("span",{class:"meta"});
+    const fi=h("input",{type:"file",accept:"image/*",multiple:true,hidden:true,onchange:async ev=>{
+      const fl=[...ev.target.files];if(!fl.length)return;
+      try{const ids=await uploadMany(fl,x.id,(i,n)=>{st.textContent="फ़ोटो "+i+"/"+n+"…"});save(d=>{const y=d.bank.find(z=>z.id===x.id);if(y)y.files=(y.files||[]).concat(ids)},ids.length+" फ़ोटो जुड़ गईं")}
+      catch(_){st.textContent="";toast("फ़ोटो अपलोड नहीं हुई")}}});
+    acts.push(fi,h("button",{class:"btn small ghost",type:"button",onclick:()=>fi.click()},"📎 पासबुक फ़ोटो"),
+      h("button",{class:"btn small ghost",type:"button",onclick:()=>{S.bankEdit=x.id;render(true)}},"सुधारें"),
+      confirmBtn("हटाएँ","danger",()=>{save(d=>{d.bank=(d.bank||[]).filter(z=>z.id!==x.id)},"बैंक एंट्री हटाई");files.forEach(id=>deleteDoc(doc(db,"bills",id)).catch(()=>{}))}),st);
+  }
+  return h("div",{class:"card",style:"margin-bottom:10px;border-left:5px solid var(--"+(out?"due":"ok")+")"},
+    h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},
+      h("div",{style:"font-weight:700"},out?"🏦 बैंक से निकाले":"🏦 बैंक में जमा किए"),
+      h("span",{class:"amt",style:"color:var(--"+(out?"due":"ok")+")"},(out?"− ":"+ ")+rs(x.amount))),
+    h("div",{class:"meta"},dateLabel(x.date)+" · उसके बाद बैंक में "+rs(bankBal(x.date))),
+    x.note?h("div",{style:"margin-top:4px;overflow-wrap:anywhere",text:x.note}):null,
+    files.length?h("div",{class:"actions",style:"justify-content:flex-start;margin-top:8px"},files.map((id,i)=>h("button",{class:"btn small ghost",type:"button",
+      onclick:()=>showBill(id,S.admin?()=>{save(d=>{const y=d.bank.find(z=>z.id===x.id);if(y)y.files=(y.files||[]).filter(f=>f!==id)},"फ़ोटो हटाई");deleteDoc(doc(db,"bills",id)).catch(()=>{})}:null)},"📒 पासबुक "+(i+1)))):h("div",{class:"small muted",style:"margin-top:4px"},"पासबुक की फ़ोटो नहीं लगी"),
+    acts.length?h("div",{class:"actions",style:"justify-content:flex-start;margin-top:8px"},acts):null);
+}
+function viewBank(){
+  const out=[];const t=totals();const bb=bankBal();const bi=bankInfo();
+  out.push(h("section",null,h("div",{class:"ledger"},
+    h("div",{class:"row"},h("span",null,"🏦 बैंक में"),h("span",{class:"amt"},rs(bb))),
+    h("div",{class:"row"},h("span",null,"💵 हाथ में नकद"),h("span",{class:"amt"},rs(t.bacha-bb))),
+    h("div",{class:"row total"},h("span",null,"कुल बचे हुए पैसे"),h("span",{class:"amt"},rs(t.bacha))))));
+  {const r=bankDepositReminder();if(r)out.push(r)}
+  if(S.admin){
+    const name=h("input",{value:bi.name||"",placeholder:"जैसे: SBI, शाखा धतुरिया"});
+    const acc=h("input",{value:bi.acc||"",placeholder:"खाते के आख़िरी 4 अंक",maxlength:"4",inputmode:"numeric"});
+    out.push(h("section",null,h("details",{open:bi.name?null:true},h("summary",{style:"cursor:pointer;font-weight:700;margin-bottom:8px"},bi.name?"🏦 "+bi.name+(bi.acc?" · खाता XXXX"+bi.acc:"")+" (बदलें)":"🏦 बैंक खाते की जानकारी भरें"),
+      h("form",{class:"f",onsubmit:e=>{e.preventDefault();const n=name.value.trim();if(!n)return;save(d=>{d.bankInfo={name:n,acc:acc.value.trim()}},"बैंक की जानकारी सेव हुई")}},
+        h("div",{class:"two"},h("label",null,"बैंक और शाखा",name),h("label",null,"खाता संख्या (आख़िरी 4 अंक)",acc)),
+        h("p",{class:"small muted",style:"margin:0"},"पूरा खाता नंबर न लिखें, आख़िरी 4 अंक काफ़ी हैं।"),
+        h("div",null,h("button",{class:"btn",type:"submit"},"सेव करें"))))));
+    out.push(h("section",null,bankForm(null)));
+  }else if(bi.name)out.push(h("p",{class:"muted"},"🏦 "+bi.name+(bi.acc?" · खाता XXXX"+bi.acc:"")));
+  const list=bankList().slice().sort((a,b)=>b.date.localeCompare(a.date));
+  out.push(h("section",null,h("h2",null,"बैंक के लेन-देन ("+list.length+")"),list.length?list.map(bankCard):h("div",{class:"empty"},"अभी कोई बैंक एंट्री नहीं")));
+  return out;
+}
+function fmtTime(t){if(!t)return "";const [H,M]=t.split(":").map(Number);const ap=H<12?"AM":"PM";const h12=H%12||12;return h12+":"+String(M).padStart(2,"0")+" "+ap}
 
 // ----- members -----
 function openMember(id){S.detail=id;S.editing=S.leaving=S.rejoining=null;if(S.view!=="sadasya")location.hash="#sadasya";else{render(true)}window.scrollTo(0,0)}
@@ -1497,7 +1589,7 @@ function meetingCard(x,highlight){
         h("button",{class:"btn ghost",type:"button",onclick:()=>{S.meetEdit=null;render(true)}},"रद्द करें")));
   }
   const card=h("div",{class:"card"+(highlight?" next-meet":""),style:"margin-bottom:10px"},
-    h("div",{class:"title",style:"font-weight:700"},dateLabel(x.date)+(x.time?", "+x.time+" बजे":"")),
+    h("div",{class:"title",style:"font-weight:700"},dateLabel(x.date)+(x.time?", "+fmtTime(x.time):"")),
     x.place?h("div",{class:"meta",text:"जगह: "+x.place}):null,
     x.agenda?h("div",{style:"margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere",text:x.agenda}):null);
   {const mo=x.date.slice(0,7);const elig=(D().members||[]).filter(m=>memberActiveIn(m,mo));const pres=Array.isArray(x.present)?x.present:null;
@@ -1598,7 +1690,7 @@ async function shareText(t){
 function waBtn(text,label){return h("button",{class:"btn small okb",type:"button",onclick:()=>shareText(text)},label||"📤 शेयर करें")}
 function noticeShareText(n){return "📢 *"+(D().name||"समिति")+"*\nसूचना · "+dateLabel(n.date)+"\n\n"+n.text+"\n\nऐप में देखें: "+appUrl()}
 function meetingShareText(x){
-  let t="🙏 *"+(D().name||"समिति")+"*\n*बैठक की सूचना*\n\n📅 "+dateLabel(x.date)+(x.time?", "+x.time+" बजे":"");
+  let t="🙏 *"+(D().name||"समिति")+"*\n*बैठक की सूचना*\n\n📅 "+dateLabel(x.date)+(x.time?", "+fmtTime(x.time):"");
   if(x.place)t+="\n📍 "+x.place;
   if(x.agenda)t+="\n\nविषय:\n"+x.agenda;
   if(x.decision)t+="\n\nलिया गया निर्णय:\n"+x.decision;
@@ -1694,7 +1786,7 @@ function render(force){
   if(!S.loaded)return plain([h("p",{class:"muted"},"हिसाब खुल रहा है…")]);
   if(!S.exists)return plain(viewSetup());
   readHash();tabsEl.style.display="";renderTabs();
-  const fn={rokad:viewRokad,aay:viewAay,rin:viewRin,mera:viewMera,saransh:viewSaransh,jama:viewJama,anurodh:viewAnurodh,sadasya:viewSadasya,kharcha:viewKharcha,baithak:viewBaithak,suchna:viewSuchna}[S.view];
+  const fn={bank:viewBank,rokad:viewRokad,aay:viewAay,rin:viewRin,mera:viewMera,saransh:viewSaransh,jama:viewJama,anurodh:viewAnurodh,sadasya:viewSadasya,kharcha:viewKharcha,baithak:viewBaithak,suchna:viewSuchna}[S.view];
   app.replaceChildren(...dueAlerts(),...fn());
 }
 
