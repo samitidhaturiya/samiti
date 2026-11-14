@@ -171,7 +171,7 @@ import { getAuth, initializeAuth, inMemoryPersistence, GoogleAuthProvider, signI
 const MONTHS=["जनवरी","फ़रवरी","मार्च","अप्रैल","मई","जून","जुलाई","अगस्त","सितंबर","अक्टूबर","नवंबर","दिसंबर"];
 const LOGIN_DOMAIN="samiti-login.app";
 const S={data:null,exists:false,admin:false,user:null,me:null,authReady:false,noAccess:false,loaded:false,error:"",month:curMonth(),monthNow:curMonth(),view:"saransh",
-  requests:[],logins:{},editing:null,leaving:null,rejoining:null,decisionEdit:null,meetEdit:null,loanEdit:null,loanClose:null,rateEdit:null,byajPay:null,aayEdit:null,raw:{},log:[],rokadYear:null,dateEdit:null,logAll:false,logOpen:false,migrating:false,showClosedLoans:false,expEdit:null,detail:null,showGone:false,busy:{},billCache:{},deferred:false,saving:Promise.resolve(),
+  requests:[],logins:{},editing:null,leaving:null,rejoining:null,decisionEdit:null,meetEdit:null,loanEdit:null,loanClose:null,rateEdit:null,byajPay:null,aayEdit:null,raw:{},log:[],rokadYear:null,dateEdit:null,attEdit:null,logAll:false,logOpen:false,migrating:false,showClosedLoans:false,expEdit:null,detail:null,showGone:false,busy:{},billCache:{},deferred:false,saving:Promise.resolve(),
   req:{months:[],amount:"",method:"नकद",note:"",sent:false}};
 let db,auth,secAuthInst=null,C=window.SAMITI_CONFIG,subs=[];
 
@@ -237,7 +237,8 @@ function totals(){
   let kharch=0;for(const e of D().expenses||[])kharch+=Number(e.amount)||0;
   let loanOut=0,byaj=0;for(const l of D().loans||[]){byaj+=byajPaidSum(l);if(l.closed)byaj+=(Number(l.closed.amount)||0)-(Number(l.amount)||0);else loanOut+=Number(l.amount)||0}
   let aay=0;for(const x of D().incomes||[])aay+=Number(x.amount)||0;
-  return {jama,kharch,byaj,loanOut,aay,bacha:jama+aay+byaj-kharch-loanOut};
+  const dand=penCollected();
+  return {jama,kharch,byaj,loanOut,aay,dand,bacha:jama+aay+dand+byaj-kharch-loanOut};
 }
 function mainRef(){return doc(db,"samiti","main")}
 
@@ -352,6 +353,7 @@ function viewSaransh(){
   if(S.admin){const mx=Math.max(...partSizes().map(x=>x.pct));if(mx>=80)out.push(h("div",{class:"card",style:"margin-bottom:16px;border-left:5px solid var(--due)"},"⚠️ हिसाब की कोई जगह "+mx+"% भर गई है। सेटिंग में \"जगह कितनी भरी\" देखें।"))}
   out.push(h("section",null,h("div",{class:"ledger"},
     h("div",{class:"row"},h("span",null,"कुल जमा"),h("span",{class:"amt"},rs(t.jama))),
+    h("div",{class:"row"},h("span",null,"दंड से आय (देर से जमा)"),h("span",{class:"amt"},"+ "+rs(t.dand))),
     t.aay?h("div",{class:"row"},h("span",null,"अन्य आय"),h("span",{class:"amt"},"+ "+rs(t.aay))):null,
     t.byaj?h("div",{class:"row"},h("span",null,"ब्याज से कमाई"),h("span",{class:"amt"},"+ "+rs(t.byaj))):null,
     h("div",{class:"row"},h("span",null,"कुल खर्च"),h("span",{class:"amt minus"},"− "+rs(t.kharch))),
@@ -360,7 +362,8 @@ function viewSaransh(){
   {const dl=(D().members||[]).map(m=>memberSummary(m).due).filter(x=>x>0);const td=dl.reduce((a,b)=>a+b,0);
    out.push(h("section",{style:"margin-top:-16px"},h("div",{class:"ledger"},h("div",{class:"row"},
      h("span",null,"अभी सभी सदस्यों का कुल जमा बाकी",dl.length?h("div",{class:"small muted"},dl.length+" सदस्यों से लेना है"):null),
-     h("span",{class:"amt"+(td?" minus":""),style:"font-size:1.35rem"},rs(td))))))}
+     h("span",{class:"amt"+(td?" minus":""),style:"font-size:1.35rem"},rs(td))),
+     (()=>{const tp=(D().members||[]).reduce((t,m)=>t+memberPenalty(m).baki,0);return tp?h("div",{class:"row"},h("span",null,"देर से जमा का कुल दंड बाकी"),h("span",{class:"amt minus"},rs(tp))):null})())))}
   if(S.admin&&S.requests.length)out.push(h("section",null,h("a",{href:"#anurodh",class:"card req",style:"display:block;color:inherit;text-decoration:none"},
     S.requests.length+" सदस्यों ने पैसे जमा करने की सूचना भेजी है। देखकर मंज़ूर करें ›")));
   const active=(D().members||[]).filter(m=>memberActiveIn(m,S.monthNow));
@@ -381,9 +384,9 @@ function viewSaransh(){
   out.push(h("section",null,h("h2",null,"किसका कितना बाकी"),
     dues.length?h("div",{class:"list"},dues.map(([m,s])=>h("div",{class:"item"},
       h("div",{class:"main"},h("div",{class:"title"},nameBtn(m),callBtn(m)),h("div",{class:"meta"},s.paidMonths+" / "+s.months+" महीने जमा")),
-      h("span",{class:"pill due"},rs(s.due)+" बाकी")))):h("div",{class:"empty"},"सबका हिसाब साफ़ है")));
+      h("span",{class:"pill due"},rs(s.due)+" बाकी"+(memberPenalty(m).baki?" + दंड "+rs(memberPenalty(m).baki):""))))):h("div",{class:"empty"},"सबका हिसाब साफ़ है")));
   if(!limited())out.push(logSection());
-  if(S.admin){out.push(reportSection());out.push(settingsForm());out.push(logoSection());out.push(storageSection());out.push(backupSection())}
+  if(S.admin){out.push(reportSection());out.push(settingsForm());out.push(penaltySettings());out.push(logoSection());out.push(storageSection());out.push(backupSection())}
   return out;
 }
 
@@ -939,7 +942,44 @@ function memberLoansSection(m){
   return h("section",null,h("h2",null,"ऋण"),ls.sort((a,b)=>b.date.localeCompare(a.date)).map(loanCard));
 }
 
-// ----- alerts after the 5th -----
+// ----- late fee (दंड) -----
+function penCfg(){const p=D().penalty||{};return {from:p.from||"2026-12",day:Number(p.day)||10,rate:p.rate!=null?Number(p.rate):2,on:p.on!==false}}
+function dueDateOf(mo){return mo+"-"+String(penCfg().day).padStart(2,"0")}
+function penaltyFor(mid,mo){
+  const c=penCfg();const m=(D().members||[]).find(x=>x.id===mid);
+  const res={days:0,amt:0,paid:0,waived:false,baki:0,running:false};
+  if(!c.on||mo<c.from||!m||!memberActiveIn(m,mo)||isSkipped(mo))return res;
+  const dd=dueDateOf(mo);const paid=paidFor(mid,mo);
+  let end;
+  if(paid>=amountFor(mo)){const pd=payDate(mid,mo);end=pd.est?dd:pd.date}else{end=today();res.running=true}
+  res.days=Math.max(0,dayDiff(dd,end));res.amt=res.days*c.rate;
+  res.paid=Number(((D().penPaid||{})[mid]||{})[mo])||0;
+  res.waived=!!((D().penWaived||{})[mid]||{})[mo];
+  res.baki=res.waived?0:Math.max(0,res.amt-res.paid);
+  if(!res.days)res.running=false;
+  return res;
+}
+function memberPenalty(m){let t=0,paid=0;for(const mo of memberMonths(m)){const p=penaltyFor(m.id,mo);t+=p.baki;paid+=p.paid}return {baki:t,paid}}
+function penCollected(){let t=0;const pp=D().penPaid||{};for(const mid in pp)for(const mo in pp[mid])t+=Number(pp[mid][mo])||0;return t}
+function penaltySettings(){
+  const c=penCfg();
+  const from=h("input",{type:"month",value:c.from});const day=h("input",{type:"number",min:"1",max:"28",value:c.day,inputmode:"numeric"});
+  const rate=h("input",{type:"number",min:"0",value:c.rate,inputmode:"numeric"});const on=h("input",{type:"checkbox",checked:c.on});
+  return h("section",null,h("h2",null,"देर से जमा पर दंड"),
+    h("form",{class:"f",onsubmit:e=>{e.preventDefault();const d1=Number(day.value),r=Number(rate.value);if(!from.value||!(d1>=1&&d1<=28)||!(r>=0))return;
+      save(d=>{d.penalty={from:from.value,day:d1,rate:r,on:on.checked}},"दंड का नियम सेव हुआ: "+monthLabel(from.value)+" से, "+d1+" तारीख़ के बाद ₹"+r+" प्रति दिन")}},
+      h("label",{style:"display:flex;gap:8px;align-items:center;color:var(--ink)"},on,"दंड लागू है"),
+      h("div",{class:"two"},h("label",null,"किस महीने से लागू",from),h("label",null,"जमा की आख़िरी तारीख़",day)),
+      h("label",null,"दंड (₹ प्रति दिन)",rate),
+      h("p",{class:"small muted",style:"margin:0"},"जैसे 10 तारीख़ तक जमा नहीं हुआ तो 11 तारीख़ से हर दिन ₹"+c.rate+" जुड़ेगा, जब तक पैसा जमा न हो।"),
+      h("div",null,h("button",{class:"btn",type:"submit"},"सेव करें"))));
+}
+// ----- attendance -----
+function attendanceOf(m){
+  const ms=(D().meetings||[]).filter(x=>Array.isArray(x.present)&&x.date<=today()&&memberActiveIn(m,x.date.slice(0,7)));
+  return {total:ms.length,came:ms.filter(x=>x.present.includes(m.id)).length};
+}
+// ----- alerts after the due day -----
 const ALERT_DAY=5;
 function dayDiff(a,b){const t=x=>Date.UTC(+x.slice(0,4),+x.slice(5,7)-1,+x.slice(8,10));return Math.round((t(b)-t(a))/86400000)}
 function monthEndOf(d){const y=+d.slice(0,4),m=+d.slice(5,7);const last=new Date(Date.UTC(y,m,0)).getUTCDate();return d.slice(0,8)+String(last).padStart(2,"0")}
@@ -968,13 +1008,14 @@ function loanReminderLines(l,own){
 }
 function dueAlerts(){
   if(!S.data)return [];
-  const mo=S.monthNow,out=[];const after=new Date().getDate()>ALERT_DAY;
+  const mo=S.monthNow,out=[];const after=new Date().getDate()>(S.monthNow>=penCfg().from?penCfg().day:ALERT_DAY);
   const banner=(lines,btn,tone)=>h("div",{class:"card",role:"status",style:"margin-bottom:16px;border-left:5px solid var(--"+(tone||"due")+");background:var(--"+(tone==="head"?"haldi-soft":"due-soft")+")"},
     h("div",{style:"font-weight:700;margin-bottom:4px"},tone==="head"?"🔔 ऋण रिमाइंडर":"⚠️ ध्यान दें"),lines.map(t=>h("div",{style:"margin-top:2px"},t)),btn||null);
   if(S.admin){
     const lines=[];
     if(after){const notPaid=(D().members||[]).filter(m=>memberActiveIn(m,mo)&&!isSkipped(mo)&&paidFor(m.id,mo)<amountFor(mo));
-      if(notPaid.length)lines.push(monthLabel(mo)+" की राशि "+notPaid.length+" सदस्यों ने अभी जमा नहीं की।");}
+      if(notPaid.length)lines.push(monthLabel(mo)+" की राशि "+notPaid.length+" सदस्यों ने अभी जमा नहीं की।");
+      const pr=notPaid.filter(m=>penaltyFor(m.id,mo).running);if(pr.length)lines.push("⏱️ "+pr.length+" सदस्यों पर देर का दंड चल रहा है (₹"+penCfg().rate+" प्रति दिन, "+dateLabel(dueDateOf(mo))+" के बाद से)।");}
     const open=loans().filter(l=>!l.closed);
     const over=open.filter(l=>l.dueDate&&dayDiff(today(),l.dueDate)<0).length;
     const soon=open.filter(l=>l.dueDate&&dayDiff(today(),l.dueDate)>=0&&dayDiff(today(),l.dueDate)<=7).length;
@@ -992,6 +1033,8 @@ function dueAlerts(){
   if(after&&memberActiveIn(m,mo)&&!isSkipped(mo)&&paidFor(m.id,mo)<amountFor(mo)){
     lines.push(monthLabel(mo)+" की राशि "+rs(amountFor(mo)-paidFor(m.id,mo))+" अभी जमा नहीं हुई। कृपया जल्दी जमा करें।");
     const due=memberSummary(m).due;if(due>0)lines.push("आपका कुल बाकी: "+rs(due));}
+  {const pn=penaltyFor(m.id,mo);if(pn.running&&pn.baki)lines.push("⏱️ देर से जमा का दंड: "+pn.days+" दिन × ₹"+penCfg().rate+" = "+rs(pn.baki)+" (हर दिन ₹"+penCfg().rate+" बढ़ रहा है)");
+   const tp=memberPenalty(m).baki;if(tp>pn.baki)lines.push("कुल दंड बाकी: "+rs(tp));}
   if(lines.length)out.push(banner(lines,S.view!=="anurodh"?h("a",{href:"#anurodh",class:"btn small",style:"display:inline-block;margin-top:8px;text-decoration:none"},"पैसे जमा बताएँ ›"):null));
   const my=loans().filter(l=>!l.closed&&l.memberId===m.id&&l.remind!==false);
   if(my.length){const ll=my.flatMap(l=>loanReminderLines(l,true).map(x=>h("div",{style:"color:"+(x.cls==="due"?"var(--due)":"inherit")},x.t)));
@@ -1084,6 +1127,7 @@ function rokadEntries(){
       if(late)E.push({date:pd.date,in:a,t:memberName(mid)+": "+monthLabel(mo)+" का जमा",tag:"देर से",est:pd.est,k:1});
       else{const g=pd.date+"|"+mo+"|"+(pd.est?1:0);(groups[g]=groups[g]||{date:pd.date,in:0,n:0,mo,est:pd.est}).in+=a;groups[g].n++}}}
   for(const g of Object.values(groups))E.push({date:g.date,in:g.in,t:"मासिक जमा ("+monthLabel(g.mo)+") · "+g.n+" सदस्य",est:g.est,k:1});
+  for(const mid in d.penPaid||{})for(const mo in d.penPaid[mid]){const a=Number(d.penPaid[mid][mo])||0;if(a)E.push({date:((d.penPaidOn||{})[mid]||{})[mo]||today(),in:a,t:memberName(mid)+": "+monthLabel(mo)+" का दंड",tag:"दंड",k:2})}
   for(const x of d.incomes||[])E.push({date:x.date,in:Number(x.amount)||0,t:"💰 "+x.subject,tag:"आय",k:2});
   for(const l of d.loans||[]){
     E.push({date:l.date,out:Number(l.amount)||0,t:"🏦 ऋण दिया: "+memberName(l.memberId),k:5});
@@ -1182,7 +1226,9 @@ function viewMemberDetail(m){
       h("div",{class:"row"},h("span",null,"कुल महीने (छूट छोड़कर)"),h("span",{class:"amt"},s.months)),
       h("div",{class:"row"},h("span",null,"जमा महीने"),h("span",{class:"amt"},s.paidMonths+" / "+s.months)),
       h("div",{class:"row"},h("span",null,"कुल जमा किया"),h("span",{class:"amt"},rs(s.paid))),
-      h("div",{class:"row total"},h("span",null,"बाकी"),h("span",{class:"amt"+(s.due?" minus":"")},rs(s.due))))));
+      h("div",{class:"row total"},h("span",null,"बाकी"),h("span",{class:"amt"+(s.due?" minus":"")},rs(s.due))),
+      (()=>{const mp=memberPenalty(m);return mp.baki||mp.paid?h("div",{class:"row"},h("span",null,"देर से जमा का दंड बाकी"),h("span",{class:"amt"+(mp.baki?" minus":"")},rs(mp.baki))):null})(),
+      (()=>{const at=attendanceOf(m);return at.total?h("div",{class:"row"},h("span",null,"बैठक में उपस्थिति"),h("span",{class:"amt"},at.came+" / "+at.total)):null})())));
   const reqs=S.admin?S.requests.filter(r=>r.memberId===m.id):(S.me===m.id?S.requests:[]);
   if(reqs.length)out.push(h("section",null,h("h2",null,"मंज़ूरी का इंतज़ार"),
     reqs.map(r=>h("div",{class:"card req"},h("div",{style:"font-weight:700"},rs(r.amount)+" · "+r.method),h("div",{class:"meta"},(r.months||[]).map(reqItemLabel).join(", "))))));
@@ -1208,8 +1254,19 @@ function viewMemberDetail(m){
       }else sub=h("span",{class:"small muted",style:"display:block"},(pd.est?"तारीख़ पता नहीं · अनुमानित":dateLabel(pd.date)+" को मिला"+(late?" · देर से":"")),
         S.admin?h("button",{class:"btn small ghost",type:"button",style:"padding:0 6px;margin-left:6px",onclick:()=>{S.dateEdit=m.id+"|"+mo;render(true)}},"📅"):null);
     }
+    const pn=penaltyFor(m.id,mo);let pen=null;
+    if(pn.amt){
+      const bits=[h("span",{class:pn.baki?"minus":"muted"},"⏱️ दंड "+rs(pn.amt)+" ("+pn.days+" दिन देर"+(pn.running?", बढ़ रहा है":"")+")"+(pn.waived?" · माफ़":pn.paid?" · "+rs(pn.paid)+" जमा":""))];
+      if(S.admin&&!pn.waived&&pn.baki){
+        bits.push(h("button",{class:"btn small okb",type:"button",style:"padding:0 8px;margin-left:6px",onclick:()=>save(d=>{d.penPaid=d.penPaid||{};(d.penPaid[m.id]=d.penPaid[m.id]||{})[mo]=pn.paid+pn.baki;d.penPaidOn=d.penPaidOn||{};(d.penPaidOn[m.id]=d.penPaidOn[m.id]||{})[mo]=today()},m.name+": "+monthLabel(mo)+" का दंड "+rs(pn.baki)+" जमा")},"दंड जमा"),
+          confirmBtn("माफ़","ghost",()=>save(d=>{d.penWaived=d.penWaived||{};(d.penWaived[m.id]=d.penWaived[m.id]||{})[mo]=true},m.name+": "+monthLabel(mo)+" का दंड माफ़")));
+      }else if(S.admin&&(pn.waived||pn.paid)){
+        bits.push(confirmBtn("वापस","ghost",()=>save(d=>{if(d.penWaived&&d.penWaived[m.id])delete d.penWaived[m.id][mo];if(d.penPaid&&d.penPaid[m.id])delete d.penPaid[m.id][mo];if(d.penPaidOn&&d.penPaidOn[m.id])delete d.penPaidOn[m.id][mo]},m.name+": "+monthLabel(mo)+" का दंड फिर से बाकी")));
+      }
+      pen=h("span",{class:"small",style:"display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:2px"},bits);
+    }
     rows.push(h("div",{class:"mrow"+(member||paid?"":" dim")},
-      h("span",{class:"mname"},MONTHS[+mo.slice(5)-1],sub),pill,h("span",{class:"amt"+(paid>0?"":" muted"),style:paid>0?"":"font-weight:400"},paid>0?amtTxt:(amtTxt?amtTxt+" बाकी":""))));
+      h("span",{class:"mname"},MONTHS[+mo.slice(5)-1],sub,pen),pill,h("span",{class:"amt"+(paid>0?"":" muted"),style:paid>0?"":"font-weight:400"},paid>0?amtTxt:(amtTxt?amtTxt+" बाकी":""))));
   }
   out.push(h("section",null,h("h2",null,"महीनेवार हिसाब"),
     h("div",{class:"ledger mlist"},rows.length?rows:h("div",{class:"empty"},"अभी कोई महीना नहीं"))));
@@ -1443,6 +1500,23 @@ function meetingCard(x,highlight){
     h("div",{class:"title",style:"font-weight:700"},dateLabel(x.date)+(x.time?", "+x.time+" बजे":"")),
     x.place?h("div",{class:"meta",text:"जगह: "+x.place}):null,
     x.agenda?h("div",{style:"margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere",text:x.agenda}):null);
+  {const mo=x.date.slice(0,7);const elig=(D().members||[]).filter(m=>memberActiveIn(m,mo));const pres=Array.isArray(x.present)?x.present:null;
+   if(S.admin&&S.attEdit===x.id){
+     const sel=new Set(pres||[]);
+     const boxes=elig.map(m=>h("label",{class:sel.has(m.id)?"on":""},h("input",{type:"checkbox",checked:sel.has(m.id),onchange:e=>{if(e.target.checked)sel.add(m.id);else sel.delete(m.id);e.target.parentNode.className=e.target.checked?"on":""}}),m.name));
+     card.append(h("div",{style:"margin-top:10px"},h("div",{style:"font-weight:700;margin-bottom:6px"},"✅ उपस्थिति लगाएँ ("+elig.length+" सदस्य)"),
+       h("div",{class:"checks"},boxes),
+       h("div",{class:"actions",style:"justify-content:flex-start;margin-top:8px"},
+         h("button",{class:"btn small ghost",type:"button",onclick:()=>{boxes.forEach(b=>{b.firstChild.checked=true;b.className="on"});elig.forEach(m=>sel.add(m.id))}},"सभी चुनें"),
+         h("button",{class:"btn small okb",type:"button",onclick:()=>{const ids=[...sel];S.attEdit=null;save(d=>{const y=d.meetings.find(z=>z.id===x.id);if(y)y.present=ids},dateLabel(x.date)+" की बैठक: "+ids.length+"/"+elig.length+" उपस्थित")}},"सेव करें"),
+         h("button",{class:"btn small ghost",type:"button",onclick:()=>{S.attEdit=null;render(true)}},"रद्द करें"))));
+   }else if(pres){
+     const came=elig.filter(m=>pres.includes(m.id)),abs=elig.filter(m=>!pres.includes(m.id));
+     card.append(h("div",{style:"margin-top:10px;padding:8px 10px;border-radius:10px;background:var(--ok-soft)"},
+       h("div",{style:"font-weight:700"},"✅ उपस्थित: "+came.length+" / "+elig.length),
+       h("div",{class:"small"},came.map(m=>m.name).join(", ")||"कोई नहीं"),
+       abs.length?h("div",{class:"small muted",style:"margin-top:4px"},"अनुपस्थित: "+abs.map(m=>m.name).join(", ")):null));
+   }}
   if(S.admin&&S.decisionEdit===x.id){
     const ta=h("textarea",{value:x.decision||"",placeholder:"बैठक में लिए गए निर्णय लिखें"});
     card.append(h("form",{style:"margin-top:10px;display:grid;gap:8px",onsubmit:e=>{e.preventDefault();const t=ta.value.trim();S.decisionEdit=null;
@@ -1470,6 +1544,7 @@ function meetingCard(x,highlight){
       catch(err){console.error(err);st.textContent="";toast("फ़ोटो अपलोड नहीं हुई")}
     }});
     card.append(h("div",{class:"actions",style:"margin-top:10px;justify-content:flex-start;align-items:center"},
+      x.date<=today()?h("button",{class:"btn small",type:"button",onclick:()=>{S.attEdit=x.id;S.meetEdit=S.decisionEdit=null;render(true)}},Array.isArray(x.present)?"✅ उपस्थिति बदलें":"✅ उपस्थिति लगाएँ"):null,
       h("button",{class:"btn small ghost",type:"button",onclick:()=>{S.meetEdit=x.id;S.decisionEdit=null;render(true)}},"✏️ जानकारी सुधारें"),
       h("button",{class:"btn small ghost",type:"button",onclick:()=>{S.decisionEdit=x.id;S.meetEdit=null;render(true)}},x.decision?"निर्णय बदलें":"निर्णय लिखें"),
       fi,h("button",{class:"btn small ghost",type:"button",onclick:()=>fi.click()},"📎 फ़ोटो जोड़ें"),
